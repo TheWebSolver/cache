@@ -1,0 +1,19 @@
+{
+    "name": "thewebsolver/cache",
+    "description": "A simple and elegant wrapper for Symfony Cache",
+    "license": "GPL-3.0-or-later",
+    "type": "library",
+    "keywords": ["psr-6", "cache", "library"],
+    "require": {
+        "php": ">=8.2.0",
+        "symfony/cache": "^7.1",
+        "psr/container": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "TheWebSolver\\Codegarage\\Lib\\": "Src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+  }
