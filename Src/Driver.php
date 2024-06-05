@@ -43,7 +43,7 @@ class Driver {
 	public function add(
 		string $key,
 		mixed $value,
-		DateTimeInterface|DateInterval|int|null $time = null
+		DateTimeInterface|DateInterval|int|Time|null $time = null
 	): bool {
 		$cached = false;
 		$value  = $this->adapter->get(
@@ -64,7 +64,7 @@ class Driver {
 	public function addComputed(
 		string $key,
 		Closure $value,
-		DateTimeInterface|DateInterval|int|null $time = null
+		DateTimeInterface|DateInterval|int|Time|null $time = null
 	): bool {
 		return $this->add( $key, $value, $time );
 	}
@@ -77,7 +77,7 @@ class Driver {
 		return $this->add( $key, $value, $time );
 	}
 
-	public function for( int|DateInterval $time, string $key, mixed $value ): bool {
+	public function for( int|Time|DateInterval $time, string $key, mixed $value ): bool {
 		return $this->add( $key, $value, $time );
 	}
 
@@ -95,7 +95,8 @@ class Driver {
 	}
 
 	public function removeTagged( string|array $tags ): bool {
-		return $this->adapter->invalidateTags( (array) $tags );
+		return $this->adapter instanceof AbstractTagAwareAdapter
+			&& $this->adapter->invalidateTags( (array) $tags );
 	}
 
 	public function flush(): bool {
@@ -105,6 +106,8 @@ class Driver {
 	}
 
 	private static function addExpiry( CacheItemInterface $item, mixed $time ): CacheItemInterface {
+		$time = $time instanceof Time ? $time->value : $time;
+
 		return match ( true ) {
 			is_int( $time ) || $time instanceof DateInterval => $item->expiresAfter( $time ),
 			$time instanceof DateTimeInterface               => $item->expiresAt( $time ),

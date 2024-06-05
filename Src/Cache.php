@@ -2,7 +2,7 @@
 /**
  * The cache drivers.
  *
- * @package TheWebSolver\Codegarage\Drivers
+ * @package TheWebSolver\Codegarage\Library
  */
 
 declare( strict_types = 1 );

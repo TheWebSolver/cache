@@ -2,7 +2,7 @@
 /**
  * Filesystem adapter data transfer object.
  *
- * @package TheWebSolver\Codegarage\DTO
+ * @package TheWebSolver\Codegarage\Library
  */
 
 declare( strict_types = 1 );
