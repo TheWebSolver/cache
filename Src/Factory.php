@@ -9,7 +9,6 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Lib\Cache;
 
-use Psr\Container\ContainerInterface;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
@@ -23,8 +22,7 @@ final class Factory {
 
 	private array $drivers = array();
 
-	public function __construct( ?ContainerInterface $app = null ) {
-		self::$instance      = $app?->has( self::class ) ? $app?->get( self::class ) : null;
+	public function __construct() {
 		self::$defaultConfig = new Directory(
 			namespace: 'rewriteReloaded',
 			location: dirname( __DIR__ ) . '/tmp/'
@@ -32,7 +30,9 @@ final class Factory {
 	}
 
 	public static function start(): self {
-		return self::$instance ??= new self();
+		return Adapter::app()?->has( self::class )
+			? Adapter::app()?->get( self::class )
+			: ( self::$instance ??= new self() );
 	}
 
 	public function driver( ?string $store = null, ?object $config = null ): Driver {
