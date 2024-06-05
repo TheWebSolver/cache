@@ -13,7 +13,7 @@ use BadMethodCallException;
 use Psr\Cache\CacheItemInterface;
 
 /**
- * @method static Driver driver(?string $store = null, ?object $config = null) The {@param `$store`} value must be one of `CacheFactory::*` constant.
+ * @method static Driver driver(?string $store = null, ?object $config = null) The {@param `$store`} value must be one of `Factory::*` constant.
  * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
  *
  * @method static ?CacheItemInterface item(string $key) Gets the item if it exists in the cache pool, `null` otherwise.
