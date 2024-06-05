@@ -9,6 +9,7 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Lib\Cache;
 
+use Psr\Container\ContainerInterface;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
@@ -29,10 +30,8 @@ final class Factory {
 		);
 	}
 
-	public static function start(): self {
-		return Adapter::app()?->has( self::class )
-			? Adapter::app()?->get( self::class )
-			: ( self::$instance ??= new self() );
+	public static function start( ?ContainerInterface $app = null ): self {
+		return self::$instance ??= ( $app?->get( id: self::class ) ?? new self() );
 	}
 
 	public function driver( ?string $store = null, ?object $config = null ): Driver {
