@@ -13,7 +13,8 @@ use BadMethodCallException;
 use Psr\Cache\CacheItemInterface;
 
 /**
- * @method static Driver driver(?string $store = null, ?object $config = null) Store must be one of `CacheFactory::*` constant.
+ * @method static Driver driver(?string $store = null, ?object $config = null) The {@param `$store`} value must be one of `CacheFactory::*` constant.
+ * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
  *
  * @method static ?CacheItemInterface item(string $key) Gets the item if it exists in the cache pool, `null` otherwise.
  *
@@ -22,8 +23,10 @@ use Psr\Cache\CacheItemInterface;
  * @method static bool persist(string $key, mixed $value) Returns `true` if persisted, `false` otherwise.
  * @method static bool until(\DateTimeInterface $time, string $key, mixed $value) Adds an item which expires at the given time.
  * @method static bool for(int|\DateInterval $time, string $key, mixed $value) Adds an item which expires after given seconds or interval.
- * @method static bool remove(string|string[] $key)
- * @method static bool clean()
+ * @method static bool remove(string|string[] $key) Removes cached item(s) with given key(s).
+ * @method static bool removeExpired() Removes cached items that have expired.
+ * @method static bool removeTagged(string|array $tags) Removes cached items that are tagged with the given value.
+ * @method static bool flush() Removes all items inside the current cache pool.
  */
 class Cache {
 	/** Cannot instantiate facade only class. */

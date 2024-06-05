@@ -1,8 +1,8 @@
 <?php
 /**
- * Cache repository.
+ * Driver that provides cache pool on-demand.
  *
- * @package TheWebSolver\Codegarage\Cache
+ * @package TheWebSolver\Codegarage\Library
  */
 
 declare( strict_types = 1 );
@@ -13,17 +13,30 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Psr\Cache\CacheItemInterface;
+use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\PruneableInterface;
+use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
 
 class Driver {
+	private array $tags = array();
+
 	public function __construct(
 		private readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter
 	) {}
 
+	/** @param string|string[] $tag */
+	public function tagged( string|array $tag ): self {
+		$this->tags = (array) $tag;
+
+		return $this;
+	}
+
 	public function item( string $key ): ?CacheItemInterface {
+		$this->updateTag();
+
 		return ( $item = $this->adapter->getItem( $key ) )->isHit() ? $item : null;
 	}
 
@@ -36,7 +49,7 @@ class Driver {
 		$value  = $this->adapter->get(
 			key: $key,
 			callback: function ( CacheItemInterface $item, bool &$save ) use ( $time, $value, &$cached ) {
-				$this->addExpiry( $item, $time );
+				$this->updateTag( self::addExpiry( $item, $time ) );
 
 				$value  = $value instanceof Closure ? $value( $item ) : $value;
 				$cached = $save = true;
@@ -56,7 +69,7 @@ class Driver {
 		return $this->add( $key, $value, $time );
 	}
 
-	public function persist( string $key, mixed $value ): mixed {
+	public function persist( string $key, mixed $value ): bool {
 		return $this->add( $key, $value, time: null );
 	}
 
@@ -70,11 +83,25 @@ class Driver {
 
 	/** @var string|string[] $key */
 	public function remove( string|array $key ): bool {
+		$this->updateTag();
+
 		return $this->adapter->deleteItems( (array) $key );
 	}
 
-	public function clean(): bool {
-		return $this->adapter instanceof PruneableInterface ? $this->adapter->prune() : false;
+	public function removeExpired(): bool {
+		$this->updateTag();
+
+		return $this->adapter instanceof PruneableInterface && $this->adapter->prune();
+	}
+
+	public function removeTagged( string|array $tags ): bool {
+		return $this->adapter->invalidateTags( (array) $tags );
+	}
+
+	public function flush(): bool {
+		$this->updateTag();
+
+		return method_exists( $this->adapter, method: 'clear' ) ? $this->adapter->clear() : false;
 	}
 
 	private static function addExpiry( CacheItemInterface $item, mixed $time ): CacheItemInterface {
@@ -83,5 +110,17 @@ class Driver {
 			$time instanceof DateTimeInterface               => $item->expiresAt( $time ),
 			default                                          => $item
 		};
+	}
+
+	private function updateTag( mixed $item = null ): void {
+		if (
+			! empty( $this->tags )
+			&& $item instanceof CacheItem
+			&& $this->adapter instanceof TagAwareCacheInterface
+		) {
+			$item->tag( $this->tags );
+		}
+
+		$this->tags = array();
 	}
 }
