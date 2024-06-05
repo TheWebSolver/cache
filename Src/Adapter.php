@@ -7,7 +7,7 @@
 
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Lib;
+namespace TheWebSolver\Codegarage\Lib\Cache;
 
 use Psr\Container\ContainerInterface;
 
