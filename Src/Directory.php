@@ -9,7 +9,7 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Lib\Cache;
 
-readonly class FileSystem {
+readonly class Directory {
 	public function __construct(
 		public string $namespace = 'route',
 		public int $life = 0,

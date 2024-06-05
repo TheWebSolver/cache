@@ -14,18 +14,18 @@ use Symfony\Component\Cache\Adapter\PdoAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
-final class CacheFactory {
+final class Factory {
 	public const DATABASE    = 'sqlDatabase';
 	public const FILE_SYSTEM = 'fileSystem';
 
-	private static CacheFactory $instance;
-	private static FileSystem $defaultConfig;
+	private static Factory $instance;
+	private static Directory $defaultConfig;
 
 	private array $drivers = array();
 
 	public function __construct( ?ContainerInterface $app = null ) {
 		self::$instance      = $app?->has( self::class ) ? $app?->get( self::class ) : null;
-		self::$defaultConfig = new FileSystem(
+		self::$defaultConfig = new Directory(
 			namespace: 'rewriteReloaded',
 			location: dirname( __DIR__ ) . '/tmp/'
 		);
@@ -35,19 +35,19 @@ final class CacheFactory {
 		return self::$instance ??= new self();
 	}
 
-	public function driver( ?string $store = null, ?object $config = null ): CacheDriver {
+	public function driver( ?string $store = null, ?object $config = null ): Driver {
 		$store ??= self::FILE_SYSTEM;
 
 		return $this->drivers[ $store ] ??= $this->get( $store, dto: $config ?? self::$defaultConfig );
 	}
 
-	private static function get( string $store, ?object $dto ): CacheDriver {
+	private static function get( string $store, ?object $dto ): Driver {
 		$dto   ??= self::$defaultConfig;
 		$config  = array_values( (array) $dto );
 
 		return match ( $store ) {
-			self::FILE_SYSTEM => new CacheDriver( new FilesystemTagAwareAdapter( ...$config ) ),
-			self::DATABASE    => new CacheDriver( new TagAwareAdapter( new PdoAdapter( ...$config ) ) ),
+			self::FILE_SYSTEM => new Driver( new FilesystemTagAwareAdapter( ...$config ) ),
+			self::DATABASE    => new Driver( new TagAwareAdapter( new PdoAdapter( ...$config ) ) ),
 		};
 	}
 }

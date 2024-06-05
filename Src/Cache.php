@@ -13,7 +13,7 @@ use BadMethodCallException;
 use Psr\Cache\CacheItemInterface;
 
 /**
- * @method static CacheDriver driver(?string $store = null, ?object $config = null) Store must be one of `CacheFactory::*` constant.
+ * @method static Driver driver(?string $store = null, ?object $config = null) Store must be one of `CacheFactory::*` constant.
  *
  * @method static ?CacheItemInterface item(string $key) Gets the item if it exists in the cache pool, `null` otherwise.
  *
@@ -30,7 +30,7 @@ class Cache {
 	private function __construct() {}
 
 	public static function __callStatic( string $method, $args ) {
-		$factory = CacheFactory::start();
+		$factory = Factory::start();
 		$method  = strtolower( $method );
 
 		if ( 'driver' === $method ) {

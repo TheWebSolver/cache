@@ -18,7 +18,7 @@ use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
 
-class CacheDriver {
+class Driver {
 	public function __construct(
 		private readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter
 	) {}
