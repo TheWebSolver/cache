@@ -24,7 +24,8 @@ class Driver {
 	private array $tags = array();
 
 	public function __construct(
-		private readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter
+		public readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter,
+		private readonly bool $taggable = false
 	) {}
 
 	/** @param string|string[] $tag */
@@ -34,27 +35,26 @@ class Driver {
 		return $this;
 	}
 
-	public function item( string $key ): ?CacheItemInterface {
-		$this->updateTag();
-
+	public function item( string $key ): ?CacheItem {
 		return ( $item = $this->adapter->getItem( $key ) )->isHit() ? $item : null;
 	}
 
 	public function add(
 		string $key,
 		mixed $value,
-		DateTimeInterface|DateInterval|int|Time|null $time = null
-	): bool {
-		$cached = false;
-		$value  = $this->adapter->get(
+		Time|DateTimeInterface|DateInterval|int|null $time = null
+	): ?CacheItem {
+		$cached = null;
+
+		$this->adapter->get(
 			key: $key,
-			callback: function ( CacheItemInterface $item, bool &$save ) use ( $time, $value, &$cached ) {
+			callback: function ( CacheItem $item, bool &$save ) use ( $time, $value, &$cached ) {
 				$this->updateTag( self::addExpiry( $item, $time ) );
 
-				$value  = $value instanceof Closure ? $value( $item ) : $value;
-				$cached = $save = true;
+				$save   = true;
+				$cached = $item;
 
-				return $value;
+				return $value instanceof Closure ? $value( $item ) : $value;
 			}
 		);
 
@@ -64,45 +64,50 @@ class Driver {
 	public function addComputed(
 		string $key,
 		Closure $value,
-		DateTimeInterface|DateInterval|int|Time|null $time = null
-	): bool {
+		Time|DateTimeInterface|DateInterval|int|null $time = null
+	): ?CacheItem {
+		return $this->add( $key, $value, $time );
+	}
+
+	public function until( DateTimeInterface $time, string $key, mixed $value ): ?CacheItem {
+		return $this->add( $key, $value, $time );
+	}
+
+	public function for( Time|DateInterval|int $time, string $key, mixed $value ): ?CacheItem {
 		return $this->add( $key, $value, $time );
 	}
 
 	public function persist( string $key, mixed $value ): bool {
-		return $this->add( $key, $value, time: null );
-	}
-
-	public function until( DateTimeInterface $time, string $key, mixed $value ): bool {
-		return $this->add( $key, $value, $time );
-	}
-
-	public function for( int|Time|DateInterval $time, string $key, mixed $value ): bool {
-		return $this->add( $key, $value, $time );
+		return null !== $this->add( $key, $value, time: null );
 	}
 
 	/** @var string|string[] $key */
-	public function remove( string|array $key ): bool {
+	public function delete( string|array $key ): bool {
 		$this->updateTag();
 
 		return $this->adapter->deleteItems( (array) $key );
 	}
 
-	public function removeExpired(): bool {
+	public function deleteExpired(): bool {
 		$this->updateTag();
 
 		return $this->adapter instanceof PruneableInterface && $this->adapter->prune();
 	}
 
-	public function removeTagged( string|array $tags ): bool {
-		return $this->adapter instanceof AbstractTagAwareAdapter
-			&& $this->adapter->invalidateTags( (array) $tags );
+	public function deleteTagged( string|array $tags ): bool {
+		$this->updateTag();
+
+		return $this->isTaggable() && $this->adapter->invalidateTags( (array) $tags );
 	}
 
 	public function flush(): bool {
 		$this->updateTag();
 
 		return method_exists( $this->adapter, method: 'clear' ) ? $this->adapter->clear() : false;
+	}
+
+	public function isTaggable(): bool {
+		return $this->taggable;
 	}
 
 	private static function addExpiry( CacheItemInterface $item, mixed $time ): CacheItemInterface {
