@@ -1,4 +1,9 @@
 <?php
+/**
+ * Factory Test.
+ *
+ * @package TheWebSolver\Codegarage\Test
+ */
 
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -34,7 +39,7 @@ class FactoryTest extends TestCase {
 	 * @covers ::setDefaultPool
 	 * @covers ::isDefault
 	 * @covers ::isSupported
-	*/
+	 */
 	public function testDefaultPoolSetterAndVariousValidators(): void {
 		$this->assertFalse( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
 		$this->assertFalse( $this->factory->isSupported( PoolType::FileSystem ) );
@@ -80,7 +85,6 @@ class FactoryTest extends TestCase {
 			expected: TagAwareAdapter::class,
 			actual: $this->factory->driver( PoolType::Database )->adapter
 		);
-
 	}
 
 	public function testExceptionThrownIfDriverNotRegisteredWithGivenCachePoolType(): void {
