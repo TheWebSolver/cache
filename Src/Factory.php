@@ -9,6 +9,7 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Lib\Cache;
 
+use LogicException;
 use BadMethodCallException;
 use Psr\Container\ContainerInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
@@ -32,7 +33,7 @@ final class Factory {
 	}
 
 	public static function start( ?ContainerInterface $app = null ): self {
-		return self::$instance ??= $app?->get( id: self::class ) ?? new self();
+		return $app?->get( id: self::class ) ?? ( self::$instance ??= new self() );
 	}
 
 	public function isDefault( PoolType $type ): bool {
@@ -63,12 +64,16 @@ final class Factory {
 		);
 	}
 
+	/** @throws LogicException When unregistered Cache Pool Type is being retrieved. */
 	public function driver( ?PoolType $type = null, bool $basic = false ): Driver {
-		$type ??= $this->getDefaultType();
-
-		if ( ! $type || ! $this->isSupported( $type ) ) {
-			$type = $this->registerFileSystemDriverAsDefault();
+		if ( $type && ! $this->isDefault( $type ) && ! $this->isSupported( $type ) ) {
+			throw new LogicException(
+				'Cannot retrieve Driver for Cache Pool Type that is not registered. Use method '
+				. Cache::class . '::setDriver()' . 'to register Driver for: ' . $type->fqcn() . '.'
+			);
 		}
+
+		$type ??= $this->getDefaultType() ?? $this->registerFileSystemDriverAsDefault();
 
 		return $basic ? $this->basic( $type ) : $this->drivers[ $this->awareKey( $type ) ];
 	}
