@@ -40,8 +40,9 @@ enum PoolType: string {
 
 		$config  = array_values( (array) $dto );
 		$args    = array( ...$config, new TagAwareMarshaller() );
+		$default = $this->adapter();
 		$adapter = TagAwareAdapter::class === $tagAware
-			? new TagAwareAdapter( ( new $this->adapter() )( ...$args ) )
+			? new TagAwareAdapter( new $default( ...$args ) )
 			: new $tagAware( ...$args );
 
 		return array( $adapter, $config );
