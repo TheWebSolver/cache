@@ -14,6 +14,7 @@ use BadMethodCallException;
 use Psr\Container\ContainerInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
+use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
 
 final class Factory {
 	private static Directory $defaultConfig;

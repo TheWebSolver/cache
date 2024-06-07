@@ -7,7 +7,7 @@
 
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Lib\Cache;
+namespace TheWebSolver\Codegarage\Lib\Cache\Data;
 
 readonly class Directory {
 	public function __construct(

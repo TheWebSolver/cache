@@ -7,7 +7,7 @@
 
 declare( strict_types = 1 );
 
-namespace TheWebSolver\Codegarage\Lib\Cache;
+namespace TheWebSolver\Codegarage\Lib\Cache\Data;
 
 use Psr\Cache\InvalidArgumentException;
 
