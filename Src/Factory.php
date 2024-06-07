@@ -9,7 +9,6 @@ declare( strict_types = 1 );
 
 namespace TheWebSolver\Codegarage\Lib\Cache;
 
-use LogicException;
 use BadMethodCallException;
 use Psr\Container\ContainerInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
@@ -17,20 +16,14 @@ use Symfony\Component\Cache\Adapter\AdapterInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
 
 final class Factory {
-	private static Directory $defaultConfig;
 	private static Factory $instance;
-	private static array $config;
 	private PoolType $default;
 
 	/** @var array<string,Driver> */
 	private array $drivers = array();
 
-	public function __construct() {
-		self::$defaultConfig = new Directory(
-			namespace: 'rewriteReloaded',
-			location: dirname( __DIR__ ) . '/tmp/'
-		);
-	}
+	/** @var array<string,mixed[]> */
+	private array $config;
 
 	public function __call( string $method, array $args ): mixed {
 		return method_exists( $driver = $this->driver(), $method )
@@ -39,11 +32,11 @@ final class Factory {
 	}
 
 	public static function start( ?ContainerInterface $app = null ): self {
-		return self::$instance ??= ( $app?->get( id: self::class ) ?? new self() );
+		return self::$instance ??= $app?->get( id: self::class ) ?? new self();
 	}
 
 	public function isDefault( PoolType $type ): bool {
-		return ( $this->default ?? PoolType::FileSystem ) === $type;
+		return $this->getDefaultType() === $type;
 	}
 
 	public function isSupported( PoolType $type ): bool {
@@ -51,49 +44,53 @@ final class Factory {
 			|| isset( $this->drivers[ $this->awareKey( $type ) ] );
 	}
 
-	public function setDefaultPool( PoolType $type ): bool {
+	public function setDefaultPool( PoolType $type, object $config ): bool {
 		if ( $this->default ?? false ) {
 			return false;
 		}
 
-		$this->default ??= $type;
+		$this->default = $type;
+
+		$this->setDriver( $type, $config );
 
 		return true;
 	}
 
-	/** @throws LogicException When config not passed for initializing cache pool for first time. */
-	public function driver(
-		?PoolType $type = null,
-		?object $config = null,
-		bool $basic = false
-	): Driver {
-		$type ??= $this->default ?? PoolType::FileSystem;
-
-		if ( ! $this->isSupported( $type ) && ! $this->isDefault( $type ) && ! $config ) {
-			throw new LogicException(
-				'Factory needs configuration object to produce Cache Pool. Provide '
-				. 'appropriate object to instantiate Cache Pool type for "'
-				. $type->fqcn() . '".'
-			);
-		}
-
-		$tagAwarePool = $this->awareKey( $type );
-
-		// Register all Tag Aware Adapters first even if basic adapter is being queried
-		// to populate the factory properties required for the application lifecycle.
-		$this->drivers[ $tagAwarePool ] ??= new Driver(
-			adapter: self::get( $type, dto: $config ?? self::$defaultConfig ),
+	public function setDriver( PoolType $type, object $config ): Driver {
+		return $this->drivers[ $this->awareKey( $type ) ] ??= new Driver(
+			adapter: $this->get( $type, dto: $config ),
 			taggable: true
 		);
+	}
 
-		return $basic ? $this->basic( $type ) : $this->drivers[ $tagAwarePool ];
+	public function driver( ?PoolType $type = null, bool $basic = false ): Driver {
+		$type ??= $this->getDefaultType();
+
+		if ( ! $type || ! $this->isSupported( $type ) ) {
+			$type = $this->registerFileSystemDriverAsDefault();
+		}
+
+		return $basic ? $this->basic( $type ) : $this->drivers[ $this->awareKey( $type ) ];
+	}
+
+	private function getDefaultType(): ?PoolType {
+		return $this->default ?? null;
+	}
+
+	private function registerFileSystemDriverAsDefault(): PoolType {
+		$this->setDriver(
+			type: $default = PoolType::FileSystem,
+			config: new Directory( namespace: 'kyasa', location: dirname( __DIR__ ) . '/tmp/' )
+		);
+
+		return $default;
 	}
 
 	private function basic( PoolType $type ): Driver {
 		$cachePool = $type->adapter();
 
 		return $this->drivers[ $type->value ] ??= new Driver(
-			adapter: new $cachePool( ...self::$config[ $type->value ] )
+			adapter: new $cachePool( ...$this->config[ $type->value ] )
 		);
 	}
 
@@ -101,8 +98,8 @@ final class Factory {
 		return 'tagAware:' . $type->value;
 	}
 
-	private static function get( PoolType $type, object $dto ): AdapterInterface {
-		[ $adapter, self::$config[ $type->value ] ] = $type->tagAware( $dto );
+	private function get( PoolType $type, object $dto ): AdapterInterface {
+		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware( $dto );
 
 		return $adapter;
 	}

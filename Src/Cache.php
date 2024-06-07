@@ -13,13 +13,15 @@ use Symfony\Component\Cache\CacheItem;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 
 /**
- * @method static bool   isDefault(PoolType $type)      Determines whether given pool type is set as default or not.
- * @method static bool   isSupported(PoolType $type)    Determines whether given pool type is supported or not.
- * @method static bool   setDefaultPool(PoolType $type) Sets default cache pool for the application request lifecycle.
- * @method static Driver driver(?PoolType $type = null, ?object $config = null, bool $basic = false)
- *                       Gets (creates if doesn't exist) the driver. `$config` is required if calling this method for
- *                       the first time (except for default pool). If basic is set to `true`, the returned driver
- *                       will not support tagging feature (grouping cache items by tag and deleting using tag).
+ * @method static bool   isDefault(PoolType $type)                      Determines whether given pool type is set as default or not.
+ * @method static bool   isSupported(PoolType $type)                    Determines whether given pool type is supported or not.
+ * @method static bool   setDefaultPool(PoolType $type, object $config) Sets default cache pool for the application request lifecycle.
+ * @method static Driver setDriver(PoolType $type, object $config) Sets driver to be used with `Cache::driver()`.
+ * @method static Driver driver(?PoolType $type = null, bool $basic = false)
+ *                       Gets the registered driver by Cache Pool type. If `$type` is null, default Cache Pool will be used.
+ *                       If default Cache Pool is also not set using `Cache::setDefaultPool()`, Filesystem will be used.
+ *                       If basic is set to `true`, the returned driver will not support tagging feature
+ *                       (_grouping cache items by tag and deleting using tag_).
  *
  * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
  *
