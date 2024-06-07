@@ -12,12 +12,8 @@ namespace TheWebSolver\Codegarage\Lib\Cache;
 use LogicException;
 use BadMethodCallException;
 use Psr\Container\ContainerInterface;
-use Symfony\Component\Cache\Adapter\PdoAdapter;
-use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
-use Symfony\Component\Cache\Marshaller\TagAwareMarshaller;
-use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 final class Factory {
 	private static Directory $defaultConfig;
@@ -36,11 +32,7 @@ final class Factory {
 	}
 
 	public function __call( string $method, array $args ): mixed {
-		if ( $this->isCallable( $method ) ) {
-			return $this->$method( ...$args );
-		}
-
-		return $this->isCallable( $method, $driver = $this->driver() )
+		return method_exists( $driver = $this->driver(), $method )
 			? $driver->$method( ...$args )
 			: throw new BadMethodCallException( "Cache driver does not support method: {$method}." );
 	}
@@ -104,33 +96,13 @@ final class Factory {
 		);
 	}
 
-	private function isCallable( string $method, ?Driver $driver = null ): bool {
-		return method_exists( $driver ?? $this, $method );
-	}
-
 	private function awareKey( PoolType $type ): string {
 		return 'tagAware:' . $type->value;
 	}
 
 	private static function get( PoolType $type, object $dto ): AdapterInterface {
-		$config = array_values( (array) $dto );
+		[ $adapter, self::$config[ $type->value ] ] = $type->tagAware( $dto );
 
-		return match ( $type ) {
-			PoolType::FileSystem => new FilesystemTagAwareAdapter(
-				...array(
-					...( self::$config[ PoolType::FileSystem->value ] = $config ),
-					new TagAwareMarshaller(),
-				)
-			),
-
-			PoolType::Database => new TagAwareAdapter(
-				new PdoAdapter(
-					...array(
-						...( self::$config[ PoolType::Database->value ] = $config ),
-						new TagAwareMarshaller(),
-					)
-				)
-			),
-		};
+		return $adapter;
 	}
 }

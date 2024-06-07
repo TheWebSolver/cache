@@ -1,6 +1,6 @@
 <?php
 /**
- * Time calculation seconds.
+ * Time calculation in seconds.
  *
  * @package TheWebSolver\Codegarage\Library
  */
