@@ -39,8 +39,8 @@ enum PoolType: string {
 			default          => TagAwareAdapter::class,
 		};
 
-		$config  = array_values( (array) $dto );
-		$args    = array( ...$this->toArray( $dto ), new TagAwareMarshaller() );
+		$config  = array_values( $this->validateConfig( $dto ) );
+		$args    = array( ...$config, new TagAwareMarshaller() );
 		$default = $this->adapter();
 		$adapter = TagAwareAdapter::class === $tagAware
 			? new TagAwareAdapter( new $default( ...$args ) )
@@ -49,23 +49,18 @@ enum PoolType: string {
 		return array( $adapter, $config );
 	}
 
-	public function toArray( object $config ): array {
-		$this->validateConfig( $config );
-
-		return match ( $this ) {
-			self::FileSystem => array( $config->namespace, $config->life, $config->location ),
-			self::Database   => array( $config->dsn, $config->namespace, $config->life, $config->options )
-		};
-	}
-
-	private function validateConfig( object $config ): void {
+	/**
+	 * @return array<string,mixed>
+	 * @throws InvalidArgumentException When invalid configuration object given.
+	 */
+	private function validateConfig( object $config ): array {
 		$class = match ( $this ) {
 			self::FileSystem => Directory::class,
 			self::Database   => PdoDsn::class,
 		};
 
 		if ( is_a( $config, $class ) ) {
-			return;
+			return (array) $config;
 		}
 
 		throw new InvalidArgumentException(
