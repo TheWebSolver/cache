@@ -20,28 +20,38 @@ enum Time: int {
 	case Month  = 30 * self::Day->value;
 	case Year   = 365 * self::Day->value;
 
-	public function add( int $extra = 1, ?Time $time = null ): int {
-		return $this->format( $this->value + ( $extra * ( $time ?? $this )->value ) );
+	public function add( int|float $extra = 1, ?Time $time = null ): int {
+		return ( $seconds = $this->format( $this->value + ( $extra * ( $time ?? $this )->value ) ) ) > 0
+			? $seconds
+			: $this->throwLesserThanOneSecond();
 	}
 
-	public function reduce( int $by = 1, ?Time $time = null ): int {
-		return self::Second !== $this
-			? $this->format( $this->value - ( $by * ( $time ?? $this )->value ) )
-			: throw new class( 'Cannot reduce cache time to less than a second.' )
-				extends \InvalidArgumentException implements InvalidArgumentException {};
+	public function reduce( int|float $by = 1, ?Time $time = null ): int {
+		return ( $seconds = $this->format( $this->value - ( $by * ( $time ?? $this )->value ) ) ) > 0
+			? $seconds
+			: $this->throwLesserThanOneSecond();
 	}
 
 	/** Divides time by given value. */
-	public function split( int $by = 2 ): int {
-		return intval( floor( $this->value / $by ) );
+	public function split( int|float $by = 2 ): int {
+		return ( $seconds = intval( floor( $this->value / $by ) ) ) > 0
+			? $seconds
+			: $this->throwLesserThanOneSecond();
 	}
 
 	/** Multiplies time by given value. */
-	public function expand( int $by = 2 ): int {
-		return intval( ceil( $this->value * $by ) );
+	public function expand( int|float $by = 2 ): int {
+		return ( $seconds = intval( ceil( $this->value * $by ) ) ) > 0
+			? $seconds
+			: $this->throwLesserThanOneSecond();
 	}
 
 	private function format( int|float $value ): int {
 		return intval( round( $value ) );
+	}
+
+	private function throwLesserThanOneSecond(): never {
+		throw new class( 'Cannot set cache time to less than a second.' )
+			extends \InvalidArgumentException implements InvalidArgumentException {};
 	}
 }
