@@ -49,10 +49,9 @@ class Driver {
 
 		$this->adapter->get(
 			key: $key,
-			callback: function ( CacheItem $item, bool &$save ) use ( $time, $value, &$cached ) {
+			callback: function ( CacheItem $item ) use ( $time, $value, &$cached ) {
 				$this->updateTag( self::addExpiry( $item, $time ) );
 
-				$save   = true;
 				$cached = $item;
 
 				return $value instanceof Closure ? $value( $item ) : $value;
