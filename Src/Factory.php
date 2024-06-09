@@ -69,7 +69,7 @@ final class Factory {
 		if ( $type && ! $this->isDefault( $type ) && ! $this->isSupported( $type ) ) {
 			throw new LogicException(
 				'Cannot retrieve Driver for Cache Pool Type that is not registered. Use method '
-				. Cache::class . '::setDriver()' . 'to register Driver for: ' . $type->fqcn() . '.'
+				. Cache::class . '::setDriver() to register Driver for: ' . $type->fqcn() . '.'
 			);
 		}
 
