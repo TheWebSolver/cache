@@ -16,7 +16,6 @@ use Psr\Cache\CacheItemInterface;
 use Symfony\Component\Cache\CacheItem;
 use Symfony\Component\Cache\PruneableInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Time;
-use Symfony\Contracts\Cache\TagAwareCacheInterface;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
@@ -121,11 +120,11 @@ class Driver {
 	}
 
 	private function updateTag( mixed $item = null ): void {
-		if (
-			! empty( $this->tags )
-			&& $item instanceof CacheItem
-			&& $this->adapter instanceof TagAwareCacheInterface
-		) {
+		if ( empty( $this->tags ) ) {
+			return;
+		}
+
+		if ( $item instanceof CacheItem && $this->isTaggable() ) {
 			$item->tag( $this->tags );
 		}
 

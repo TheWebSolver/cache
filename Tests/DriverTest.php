@@ -9,12 +9,88 @@ declare( strict_types = 1 );
 
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Cache\CacheItem;
+use PHPUnit\Framework\MockObject\MockObject;
 use TheWebSolver\Codegarage\Lib\Cache\Driver;
+use TheWebSolver\Codegarage\Lib\Cache\Data\Time;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
+use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 
 class DriverTest extends TestCase {
+	private bool $isHit = false;
+
+	/** Expects Cache Item key to be set as _**`cacheKey`**_. */
+	private function simulateCacheMissesFirstTimeAndHitsSecondTime(
+		string $val,
+		bool $getCachedValue = true
+	): MockObject&AbstractAdapter {
+		$adapter     = $this->createMock( AbstractAdapter::class );
+		$this->isHit = false;
+
+		$adapter->expects( $this->exactly( 2 ) )
+			->method( 'get' )
+			->with( 'cacheKey', fn( $item ): string => $val )
+			->willReturnCallback(
+				function ( string $key, Closure $callback ) use ( $getCachedValue ) {
+					if ( ! $this->isHit ) {
+						$this->isHit = true;
+
+						( $item = $this->createMock( CacheItem::class ) )
+							->expects( $this->exactly( $getCachedValue ? 1 : 0 ) )
+							->method( 'get' )
+							->willReturn( $callback( $item ) );
+					}
+				}
+			);
+
+		return $adapter;
+	}
+
+	/** @dataProvider provideVariousItemTagTypes */
+	public function testTaggedItem( string|array $tags, bool $taggable ): void {
+		$driver = new Driver( $adapter = $this->createMock( TagAwareAdapter::class ), $taggable );
+
+		$adapter->expects( $this->once() )
+			->method( 'get' )
+			->with( 'key', fn( $item ): string => 'value' )
+			->willReturnCallback(
+				function ( string $key, Closure $callable ) use ( $tags, $taggable ) {
+					$item = $this->createMock( CacheItem::class );
+
+					$item->expects( $this->exactly( $taggable ? 1 : 0 ) )
+						->method( 'tag' )
+						->with( (array) $tags )
+						->willReturnSelf();
+
+						$callable( $item );
+				}
+			);
+
+		$driver->tagged( $tags )->add( 'key', 'value' );
+	}
+
+	/** @return array<array<string|string[]>> */
+	public function provideVariousItemTagTypes(): array {
+		return array(
+			array( 'testOne', true ),
+			array( 'should not be added', false ),
+			array( array( '1', '2' ), true ),
+			array( array( 'non-taggable', 'adapter' ), false ),
+		);
+	}
+
+	public function testIsTaggableGetter(): void {
+		$this->assertTrue(
+			( new Driver( $this->createStub( AbstractAdapter::class ), taggable: true ) )->isTaggable()
+		);
+
+		$this->assertFalse(
+			( new Driver( $this->createStub( AbstractAdapter::class ), taggable: false ) )->isTaggable()
+		);
+	}
+
 	public function testGettingCachedItem(): void {
 		$adapter = $this->createMock( AbstractAdapter::class );
+
 		$adapter->expects( $this->exactly( 2 ) )
 			->method( 'getItem' )
 			->with( 'cacheItemKey' )
@@ -31,37 +107,25 @@ class DriverTest extends TestCase {
 	}
 
 	public function testCacheItemAddition(): void {
-		$adapter  = $this->createMock( AbstractAdapter::class );
-		$item     = null;
+		$driver = new Driver(
+			$this->simulateCacheMissesFirstTimeAndHitsSecondTime( 'cache saved', getCachedValue: true )
+		);
 
-		$adapter->expects( $this->exactly( 2 ) )
-			->method( 'get' )
-			->with( 'cacheKey', fn(): string => 'set value only if cache misses' )
-			->willReturnCallback(
-				function () use ( &$item ) {
-					// Simulate whether cache item is hit or miss.
-					static $isHit = false;
+		$missed = $driver->add( 'cacheKey', 'cache saved' );
+		$hits   = $driver->add( 'cacheKey', 'is never triggered.' );
 
-					// If cache item hits, the value already exists in the cache (until it expires).
-					// When this happens, the passed argument as callback is never invoked.
-					// Due to this, the adapter misses assigning the cached item.
-					if ( $isHit ) {
-						return $item = null;
-					}
+		$this->assertSame( 'cache saved', $missed->get() );
+		$this->assertInstanceOf( CacheItem::class, $missed );
+		$this->assertNull( $hits );
+	}
 
-					$isHit = true;
+	public function testPersistingItemForever(): void {
+		$driver = new Driver(
+			$this->simulateCacheMissesFirstTimeAndHitsSecondTime( 'persist', getCachedValue: false )
+		);
 
-					return $item = $this->createStub( CacheItem::class );
-				}
-			);
-
-		$driver = new Driver( $adapter );
-
-		$driver->add( 'cacheKey', 'value' );
-		$this->assertInstanceOf( CacheItem::class, $item );
-
-		$driver->add( 'cacheKey', 'value' );
-		$this->assertNull( $item );
+		$this->assertTrue( $driver->persist( 'cacheKey', 'persist' ) );
+		$this->assertFalse( $driver->persist( 'cacheKey', 'is never triggered' ) );
 	}
 
 	public function testAddingComputedValue(): void {
@@ -75,19 +139,18 @@ class DriverTest extends TestCase {
 			->willReturnCallback(
 				function ( string $key, Closure $compute ) {
 					( $item = $this->createMock( CacheItem::class ) )
-						->expects( $this->once() )
 						->method( 'get' )
 						->willReturn( $compute( $item ) );
 				}
 			);
 
-		$this->assertSame( 'Computed Value', $driver->addComputed( 'key', $computed )->get() );
+		$this->assertSame( 'Computed Value', actual: $driver->addComputed( 'key', $computed )->get() );
 	}
 
-	public function testAddingItemExpiresAt(): void {
-		$adapter = $this->createMock( AbstractAdapter::class );
-		$driver  = new Driver( $adapter );
-		$date    = DateTimeImmutable::createFromFormat( 'Y-M', '2024-May' );
+	public function testAddingItemUntilTheGivenTime(): void {
+		$adapter  = $this->createMock( AbstractAdapter::class );
+		$driver   = new Driver( $adapter );
+		$date     = DateTimeImmutable::createFromFormat( 'Y-M', '2024-May' );
 		$callback = fn( $item ) => 'value';
 
 		$adapter->expects( $this->once() )
@@ -95,17 +158,49 @@ class DriverTest extends TestCase {
 			->with( 'key', $callback )
 			->willReturnCallback(
 				function ( $key, $callback ) use ( $date ) {
-					$item = $this->createMock( CacheItem::class );
-
-					$item->expects( $this->once() )
+					( $item = $this->createMock( CacheItem::class ) )
+						->expects( $this->once() )
 						->method( 'expiresAt' )
 						->with( $date )
 						->willReturnSelf();
 
-					$callback( $item );
+					$item->method( 'get' )->willReturn( $callback( $item ) );
 				}
 			);
 
-		$driver->until( $date, 'key', 'value' );
+		$this->assertSame( 'value', actual: $driver->until( $date, 'key', 'value' )->get() );
+	}
+
+	/** @dataProvider provideVariousExpirationTimes */
+	public function testAddingItemForTheGivenTime( Time|DateInterval|int $expiresAfter ): void {
+		$adapter  = $this->createMock( AbstractAdapter::class );
+		$driver   = new Driver( $adapter );
+		$callback = fn( $item ) => 'value';
+
+		$adapter->expects( $this->once() )
+			->method( 'get' )
+			->with( 'key', $callback )
+			->willReturnCallback(
+				function ( string $key, Closure $callback ) use ( $expiresAfter ) {
+					( $item = $this->createMock( CacheItem::class ) )
+						->expects( $this->once() )
+						->method( 'expiresAfter' )
+						// Adapter itself does not accept "Time" enum. Make it compatible.
+						->with( $expiresAfter instanceof Time ? $expiresAfter->value : $expiresAfter )
+						->willReturnSelf();
+
+					$item->method( 'get' )->willReturn( $callback( $item ) );
+				}
+			);
+
+		$this->assertSame( 'value', actual: $driver->for( $expiresAfter, 'key', 'value' )->get() );
+	}
+
+	public function provideVariousExpirationTimes(): array {
+		return array(
+			array( 30 ),
+			array( Time::Minute ),
+			array( new DateInterval( 'PT1M' ) ),
+		);
 	}
 }
