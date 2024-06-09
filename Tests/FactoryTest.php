@@ -19,8 +19,35 @@ use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 class FactoryTest extends TestCase {
 	private Factory $factory;
 
+	public const TEST_CACHE_DIR = __DIR__ . '/cache';
+
 	protected function setUp(): void {
 		$this->factory = new Factory();
+	}
+
+	protected function tearDown(): void {
+		$this->flushTestCacheDir( dir: self::TEST_CACHE_DIR );
+	}
+
+	private function flushTestCacheDir( string $dir ): bool {
+		$removedEverything = false;
+
+		if ( ! is_dir( $dir ) ) {
+			return $removedEverything;
+		}
+
+		foreach ( scandir( $dir ) as $content ) {
+			if ( '.' === $content || '..' === $content ) {
+				continue;
+			}
+
+			$maybeDir          = $dir . DIRECTORY_SEPARATOR . $content;
+			$removedEverything = is_dir( $maybeDir ) && ! is_link( $maybeDir )
+				? $this->flushTestCacheDir( $maybeDir )
+				: unlink( $maybeDir );
+		}
+
+		return rmdir( $dir ) && $removedEverything;
 	}
 
 	public function testSingleTonOrFromContainer(): void {
@@ -44,14 +71,16 @@ class FactoryTest extends TestCase {
 		$this->assertFalse( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
 		$this->assertFalse( $this->factory->isSupported( PoolType::FileSystem ) );
 
+		$directory = new Directory( location: self::TEST_CACHE_DIR );
+
 		$this->assertTrue(
-			$this->factory->setDefaultPool( PoolType::FileSystem, config: new Directory() )
+			$this->factory->setDefaultPool( PoolType::FileSystem, config: $directory )
 		);
 
 		$this->assertTrue( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
 
 		$this->assertFalse(
-			condition: $this->factory->setDefaultPool( PoolType::FileSystem, config: new Directory() ),
+			condition: $this->factory->setDefaultPool( PoolType::FileSystem, config: $directory ),
 			message: 'Default Cache Pool must only be added once.'
 		);
 
