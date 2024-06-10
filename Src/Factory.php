@@ -33,7 +33,7 @@ final class Factory {
 	}
 
 	public static function start( ?ContainerInterface $app = null ): self {
-		return $app?->get( id: self::class ) ?? ( self::$instance ??= new self() );
+		return self::$instance ??= $app?->get( id: self::class ) ?? new self();
 	}
 
 	public function isDefault( PoolType $type ): bool {
