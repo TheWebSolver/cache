@@ -6,9 +6,9 @@ This package aims to provide a better Developer Experience (DX) to interact with
 
 ## Benefits
 
-- Aims to provide easier (with dead-simple API) and Type-safe (More secure and robust) application.
+- Aims to provide easier (with dead-simple API) and Type-safe (more secure and robust) application design.
 - Exposes various methods:
-	- for registering various *_Adapters_* in the PHP project Bootstrap file, and
+	- for registering *_Adapters_* in the PHP project Bootstrap file, and
 	- to use those registered *_Adapters_* flawlessly from within Middlewares (or anywhere it seems fit).
 - Supports Dependency Injection with your own App Container (that implements [PSR-11][11] _Container Interface_).
 
