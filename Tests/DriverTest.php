@@ -14,25 +14,24 @@ use TheWebSolver\Codegarage\Lib\Cache\Driver;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Time;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
+use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
 
 class DriverTest extends TestCase {
-	private bool $isHit = false;
-
 	/** Expects Cache Item key to be set as _**`cacheKey`**_. */
 	private function simulateCacheMissesFirstTimeAndHitsSecondTime(
 		string $val,
 		bool $getCachedValue = true
 	): MockObject&AbstractAdapter {
-		$adapter     = $this->createMock( AbstractAdapter::class );
-		$this->isHit = false;
+		$adapter = $this->createMock( AbstractAdapter::class );
+		$isHit   = false;
 
 		$adapter->expects( $this->exactly( 2 ) )
 			->method( 'get' )
 			->with( 'cacheKey', fn( $item ): string => $val )
 			->willReturnCallback(
-				function ( string $key, Closure $callback ) use ( $getCachedValue ) {
-					if ( ! $this->isHit ) {
-						$this->isHit = true;
+				function ( string $key, Closure $callback ) use ( $getCachedValue, &$isHit ) {
+					if ( ! $isHit ) {
+						$isHit = true;
 
 						( $item = $this->createMock( CacheItem::class ) )
 							->expects( $this->exactly( $getCachedValue ? 1 : 0 ) )
@@ -46,17 +45,17 @@ class DriverTest extends TestCase {
 	}
 
 	/** @dataProvider provideVariousItemTagTypes */
-	public function testTaggedItem( string|array $tags, bool $taggable ): void {
-		$driver = new Driver( $adapter = $this->createMock( TagAwareAdapter::class ), $taggable );
+	public function testTaggedItem( string|array $tags, bool $expectTaggable ): void {
+		$driver = new Driver( $adapter = $this->createMock( TagAwareAdapter::class ), taggable: true );
 
 		$adapter->expects( $this->once() )
 			->method( 'get' )
 			->with( 'key', fn( $item ): string => 'value' )
 			->willReturnCallback(
-				function ( string $key, Closure $callable ) use ( $tags, $taggable ) {
+				function ( string $key, Closure $callable ) use ( $tags, $expectTaggable ) {
 					$item = $this->createMock( CacheItem::class );
 
-					$item->expects( $this->exactly( $taggable ? 1 : 0 ) )
+					$item->expects( $this->exactly( $expectTaggable ? 1 : 0 ) )
 						->method( 'tag' )
 						->with( (array) $tags )
 						->willReturnSelf();
@@ -72,9 +71,10 @@ class DriverTest extends TestCase {
 	public function provideVariousItemTagTypes(): array {
 		return array(
 			array( 'testOne', true ),
-			array( 'should not be added', false ),
 			array( array( '1', '2' ), true ),
-			array( array( 'non-taggable', 'adapter' ), false ),
+			array( '' /* Empty tag */, false ),
+			array( array( /* Empty tags array */ ), false ),
+			array( array( '', '' /* Empty tags array with empty string */ ), false ),
 		);
 	}
 
@@ -111,12 +111,12 @@ class DriverTest extends TestCase {
 			$this->simulateCacheMissesFirstTimeAndHitsSecondTime( 'cache saved', getCachedValue: true )
 		);
 
-		$missed = $driver->add( 'cacheKey', 'cache saved' );
+		$misses = $driver->add( 'cacheKey', 'cache saved' );
 		$hits   = $driver->add( 'cacheKey', 'is never triggered.' );
 
-		$this->assertSame( 'cache saved', $missed->get() );
-		$this->assertInstanceOf( CacheItem::class, $missed );
-		$this->assertNull( $hits );
+		$this->assertSame( 'cache saved', $misses->get() );
+		$this->assertInstanceOf( CacheItem::class, $misses );
+		$this->assertNull( $hits, message: 'Item instance must be flashed only once on Cache miss' );
 	}
 
 	public function testPersistingItemForever(): void {
@@ -139,6 +139,7 @@ class DriverTest extends TestCase {
 			->willReturnCallback(
 				function ( string $key, Closure $compute ) {
 					( $item = $this->createMock( CacheItem::class ) )
+						->expects( $this->once() )
 						->method( 'get' )
 						->willReturn( $compute( $item ) );
 				}
@@ -157,7 +158,7 @@ class DriverTest extends TestCase {
 			->method( 'get' )
 			->with( 'key', $callback )
 			->willReturnCallback(
-				function ( $key, $callback ) use ( $date ) {
+				function ( string $key, Closure $callback ) use ( $date ) {
 					( $item = $this->createMock( CacheItem::class ) )
 						->expects( $this->once() )
 						->method( 'expiresAt' )
@@ -201,6 +202,86 @@ class DriverTest extends TestCase {
 			array( 30 ),
 			array( Time::Minute ),
 			array( new DateInterval( 'PT1M' ) ),
+		);
+	}
+
+	public function testDeleteCachedItemsUsingCacheKey(): void {
+		$adapter = $this->createMock( AbstractAdapter::class );
+		$driver  = new Driver( $adapter );
+
+		$adapter->expects( $this->exactly( 2 ) )
+			->method( 'deleteItems' )
+			->willReturn( true, false );
+
+		$this->assertTrue( $driver->delete( 'cacheKey' ) );
+		$this->assertFalse( $driver->delete( 'cacheKey' ) );
+	}
+
+	public function testDeleteTaggedCacheItemUsingTag(): void {
+		$adapter = $this->createMock( TagAwareAdapter::class );
+		$driver  = new Driver( $adapter, taggable: true );
+
+		$adapter->expects( $this->once() )
+			->method( 'invalidateTags' )
+			->willReturn( true );
+
+		$this->assertTrue( $driver->deleteTagged( 'testTag' ) );
+
+		$driver = new Driver( $adapter, taggable: false );
+
+		$this->assertFalse( $driver->deleteTagged( 'testAgain' ) );
+	}
+
+	/** @dataProvider providePruneableAdapters */
+	public function testDeleteExpiredCacheItemsUsingCacheKey(
+		string $adapterClass,
+		bool $expectPruneMethod
+	): void {
+		$adapter = $this->createMock( $adapterClass );
+		$driver  = new Driver( $adapter );
+
+		if ( $expectPruneMethod ) {
+			$adapter->expects( $this->exactly( 2 ) )
+				->method( 'prune' )
+				->willReturn( false, true );
+
+			$this->assertFalse( $driver->deleteExpired() );
+		}
+
+		$this->assertSame( $expectPruneMethod, $driver->deleteExpired() );
+	}
+
+	/** @return array<array{0:string,1:bool}> */
+	public function providePruneableAdapters(): array {
+		return array(
+			array( TagAwareAdapter::class, true ),
+			array( AbstractAdapter::class, false ),
+			array( AbstractTagAwareAdapter::class, false ),
+		);
+	}
+
+	/** @dataProvider provideFlushableAdapters */
+	public function testFlushCachedItems( string $adapterClass, bool $expectClearMethod ): void {
+		$adapter = $this->createMock( $adapterClass );
+		$driver  = new Driver( $adapter );
+
+		if ( $expectClearMethod ) {
+			$adapter->expects( $this->exactly( 2 ) )
+				->method( 'clear' )
+				->willReturn( false, true );
+
+			$this->assertFalse( $driver->flush() );
+		}
+
+		$this->assertSame( $expectClearMethod, $driver->flush() );
+	}
+
+	/** @return array<array{0:string,1:bool}> */
+	public function provideFlushableAdapters(): array {
+		return array(
+			array( AbstractAdapter::class, true ),
+			array( TagAwareAdapter::class, false ),
+			array( AbstractTagAwareAdapter::class, true ),
 		);
 	}
 }

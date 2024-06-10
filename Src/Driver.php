@@ -30,7 +30,7 @@ class Driver {
 
 	/** @param string|string[] $tag */
 	public function tagged( string|array $tag ): self {
-		$this->tags = (array) $tag;
+		$this->tags = array_unique( array_filter( (array) $tag ) );
 
 		return $this;
 	}
@@ -124,7 +124,7 @@ class Driver {
 			return;
 		}
 
-		if ( $item instanceof CacheItem && $this->isTaggable() ) {
+		if ( $this->isTaggable() && $item instanceof CacheItem ) {
 			$item->tag( $this->tags );
 		}
 
