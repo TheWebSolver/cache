@@ -15,6 +15,8 @@ use Psr\Container\ContainerInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
+use Symfony\Component\Cache\Marshaller\SodiumMarshaller;
+use Symfony\Component\Cache\Marshaller\DefaultMarshaller;
 
 final class Factory {
 	private static Factory $instance;
@@ -26,6 +28,19 @@ final class Factory {
 	/** @var array<string,mixed[]> */
 	private array $config;
 
+	/** @var array<string> */
+	private array $crypto = array();
+
+	public readonly Directory $directory;
+
+	public function __construct() {
+		$this->directory = new Directory( namespace: 'kyasa', location: dirname( __DIR__ ) . '/tmp/' );
+	}
+
+	/**
+	 * @throws BadMethodCallException When undefined driver method was invoked.
+	 * @mixin \TheWebSolver\Codegarage\Lib\Cache\Driver
+	 */
 	public function __call( string $method, array $args ): mixed {
 		return method_exists( $driver = $this->driver(), $method )
 			? $driver->$method( ...$args )
@@ -45,27 +60,44 @@ final class Factory {
 			|| isset( $this->drivers[ $this->awareKey( $type ) ] );
 	}
 
-	public function setDefaultPool( PoolType $type, object $config ): bool {
+	public function setDefaultPool( PoolType $type, object $config, bool $encrypted = false ): bool {
 		if ( $this->default ?? false ) {
 			return false;
 		}
 
 		$this->default = $type;
 
-		$this->setDriver( $type, $config );
+		return $this->setDriver( $type, $config, $encrypted );
+	}
+
+	public function setDriver( PoolType $type, object $config, bool $encrypted = false ): bool {
+		if ( $this->drivers[ $key = $this->awareKey( $type, $encrypted ) ] ?? false ) {
+			return false;
+		}
+
+		$this->drivers[ $key ] = new Driver(
+			adapter: $this->get( $type, dto: $config, encrypted: $encrypted ),
+			taggable: true
+		);
 
 		return true;
 	}
 
-	public function setDriver( PoolType $type, object $config ): Driver {
-		return $this->drivers[ $this->awareKey( $type ) ] ??= new Driver(
-			adapter: $this->get( $type, dto: $config ),
-			taggable: true
-		);
+	public function setEncryptionKeys( string|array $keys ): void {
+		$this->crypto = $this->checkCrypto( $keys );
 	}
 
 	/** @throws LogicException When unregistered Cache Pool Type is being retrieved. */
-	public function driver( ?PoolType $type = null, bool $basic = false ): Driver {
+	public function driver( ?PoolType $type = null, bool $basic = false, bool $encrypted = false ): Driver {
+		return $this->resolveDriver( $type, $basic, $encrypted );
+	}
+
+	/** @return string[] */
+	public function getDecryptionKeys(): array {
+		return $this->crypto;
+	}
+
+	private function resolveDriver( ?PoolType $type, bool $basic, bool $encrypted ): Driver {
 		if ( $type && ! $this->isDefault( $type ) && ! $this->isSupported( $type ) ) {
 			throw new LogicException(
 				'Cannot retrieve Driver for Cache Pool Type that is not registered. Use method '
@@ -75,7 +107,9 @@ final class Factory {
 
 		$type ??= $this->getDefaultType() ?? $this->registerFileSystemDriverAsDefault();
 
-		return $basic ? $this->basic( $type ) : $this->drivers[ $this->awareKey( $type ) ];
+		return $basic
+			? $this->basic( $type, $encrypted )
+			: $this->drivers[ $this->awareKey( $type, $encrypted ) ];
 	}
 
 	private function getDefaultType(): ?PoolType {
@@ -85,27 +119,33 @@ final class Factory {
 	private function registerFileSystemDriverAsDefault(): PoolType {
 		$this->setDriver(
 			type: $default = PoolType::FileSystem,
-			config: new Directory( namespace: 'kyasa', location: dirname( __DIR__ ) . '/tmp/' )
+			config: $this->directory
 		);
 
 		return $default;
 	}
 
-	private function basic( PoolType $type ): Driver {
-		$cachePool = $type->adapter();
+	private function basic( PoolType $type, bool $encrypted ): Driver {
+		$cachePool  = $type->adapter();
+		$marshaller = $encrypted ? new SodiumMarshaller( $this->crypto ) : new DefaultMarshaller();
 
 		return $this->drivers[ $type->value ] ??= new Driver(
-			adapter: new $cachePool( ...$this->config[ $type->value ] )
+			adapter: new $cachePool( ...array( ...$this->config[ $type->value ], $marshaller ) )
 		);
 	}
 
-	private function awareKey( PoolType $type ): string {
-		return 'tagAware:' . $type->value;
+	private function awareKey( PoolType $type, bool $encrypted = false ): string {
+		return ( $encrypted ? 'encrypted:' : '' ) . 'tagAware:' . $type->value;
 	}
 
-	private function get( PoolType $type, object $dto ): AdapterInterface {
-		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware( $dto );
+	private function get( PoolType $type, object $dto, bool $encrypted ): AdapterInterface {
+		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware( $dto, $encrypted );
 
 		return $adapter;
+	}
+
+	/** @return string[] */
+	private function checkCrypto( string|array $keys ): array {
+		return array_unique( array_filter( (array) $keys ) );
 	}
 }

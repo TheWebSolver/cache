@@ -10,10 +10,12 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Lib\Cache\Data;
 
 use InvalidArgumentException;
+use TheWebSolver\Codegarage\Lib\Cache\Factory;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Symfony\Component\Cache\Marshaller\SodiumMarshaller;
 use Symfony\Component\Cache\Marshaller\TagAwareMarshaller;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
@@ -33,14 +35,19 @@ enum PoolType: string {
 	}
 
 	/** @return array{0:AdapterInterface,1:mixed[]} */
-	public function tagAware( object $dto ): array {
+	public function tagAware( object $dto, bool $encrypted = false ): array {
 		$tagAware = match ( $this ) {
 			self::FileSystem => FilesystemTagAwareAdapter::class,
 			default          => TagAwareAdapter::class,
 		};
 
+		$marshaller = new TagAwareMarshaller();
+		$marshaller = $encrypted
+			? new SodiumMarshaller( Factory::start()->getDecryptionKeys(), $marshaller )
+			: $marshaller;
+
 		$config  = array_values( $this->validateConfig( $dto ) );
-		$args    = array( ...$config, new TagAwareMarshaller() );
+		$args    = array( ...$config, $marshaller );
 		$default = $this->adapter();
 		$adapter = TagAwareAdapter::class === $tagAware
 			? new TagAwareAdapter( new $default( ...$args ) )

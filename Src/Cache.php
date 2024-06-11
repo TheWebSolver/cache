@@ -13,14 +13,17 @@ use Symfony\Component\Cache\CacheItem;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 
 /**
- * @method static bool   isDefault(PoolType $type)                      Determines whether given pool type is set as default or not.
- * @method static bool   isSupported(PoolType $type)                    Determines whether given pool type is supported or not.
- * @method static bool   setDefaultPool(PoolType $type, object $config) Sets default cache pool for the application request lifecycle.
- * @method static Driver setDriver(PoolType $type, object $config) Sets driver to be used with `Cache::driver()`.
- * @method static Driver driver(?PoolType $type = null, bool $basic = false)
- *                       Gets the registered driver by Cache Pool type. If `$type` is null, default Cache Pool will be used.
- *                       If default Cache Pool is also not set using `Cache::setDefaultPool()`, Filesystem will be used.
- *                       If basic is set to `true`, the returned driver will not support tagging feature
+ * @method static bool isDefault(PoolType $type)   Determines whether given pool type is set as default or not.
+ * @method static bool isSupported(PoolType $type) Determines whether given pool type is supported or not.
+ *
+ * @method static bool setDefaultPool(PoolType $type, object $config, bool $encrypted = false) Sets default cache pool for the application request lifecycle.
+ * @method static void setEncryptionKeys(string|string[] $keys)                                Sets rotating encryption key(s) either from env or db.
+ * @method static bool setDriver(PoolType $type, object $config, bool $encrypted = false)      Sets driver to be used with `Cache::driver()`.
+ *
+ * @method static Driver encrypted(?PoolType $type = null, bool $basic = false) Gets the driver that encrypts values in the Cache Pool.
+ * @method static Driver driver(?PoolType $type = null, bool $basic = false, bool $encrypted = false)    Gets the registered driver by Cache Pool type. If `$type` is null,
+ *                       default Cache Pool will be used. If default Cache Pool is also not set using `Cache::setDefaultPool()`, Filesystem
+ *                       will be created and used. If basic is set to `true`, the returned driver will not support tagging feature
  *                       (_grouping cache items by tag and deleting using tag_).
  *
  * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
@@ -34,14 +37,16 @@ use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
  * @method static ?CacheItem for(Time|\DateInterval|int $time, string $key, mixed $value) Adds an item which expires after
  *                           given seconds or interval.
  *
- * @method static bool persist(string $key, mixed $value) Returns `true` if item is cached indefinitely (until deleted manually),
- *                                                        `false` otherwise.
- * @method static bool delete(string|string[] $key)       Removes cached item(s) with given key(s).
- * @method static bool deleteExpired()                    Removes cached items that have expired.
- * @method static bool deleteTagged(string|array $tags)   Removes cached items that are tagged with the given value.
- *                                                        Only works if `Cache::tagged()` is used.
- * @method static bool flush()                            Removes all items inside the current cache pool.
- * @method static bool isTaggable()                       Returns `true` if is a taggable cache pool.
+ * @method static bool persist(string $key, mixed $value)  Returns `true` if item is cached indefinitely (until deleted manually),
+ *                                                         `false` otherwise.
+ * @method static bool delete(string|string[] $key)        Removes cached item(s) with given key(s).
+ * @method static bool deleteExpired()                     Removes cached items that have expired.
+ * @method static bool deleteTagged(string|string[] $tags) Removes cached items that are tagged with the given value.
+ *                                                         Only works if `Cache::tagged()` is used.
+ * @method static bool flush()                             Removes all items inside the current cache pool.
+ * @method static bool isTaggable()                        Returns `true` if is a taggable cache pool.
+ *
+ * @method static string[] getDecryptionKeys() Gets the encryption keys used for encrypting cache value.
  */
 class Cache {
 	/** @throws \BadMethodCallException When undefined method is invoked. */
