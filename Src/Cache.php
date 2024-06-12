@@ -16,13 +16,13 @@ use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
  * @method static bool isDefault(PoolType $type)   Determines whether given pool type is set as default or not.
  * @method static bool isSupported(PoolType $type) Determines whether given pool type is supported or not.
  *
- * @method static bool setDefaultPool(PoolType $type, object $config, bool $encrypted = false) Sets default cache pool for the application request lifecycle.
- * @method static void setEncryptionKeys(string|string[] $keys)                                Sets rotating encryption key(s) either from env or db.
- * @method static bool setDriver(PoolType $type, object $config, bool $encrypted = false)      Sets driver to be used with `Cache::driver()`.
+ * @method static bool setDefault(PoolType $type)                                         Sets default cache pool for the application request lifecycle.
+ * @method static void setEncryptionKeys(string|string[] $keys)                           Sets rotating encryption key(s) either from env or db.
+ * @method static bool setDriver(PoolType $type, object $config, bool $encrypted = false) Sets driver to be used with `Cache::driver()`.
  *
- * @method static Driver encrypted(?PoolType $type = null, bool $basic = false) Gets the driver that encrypts values in the Cache Pool.
- * @method static Driver driver(?PoolType $type = null, bool $basic = false, bool $encrypted = false)    Gets the registered driver by Cache Pool type. If `$type` is null,
- *                       default Cache Pool will be used. If default Cache Pool is also not set using `Cache::setDefaultPool()`, Filesystem
+ * @method static Driver encrypted(?PoolType $type = null, bool $basic = false)                       Gets the driver that encrypts values in the Cache Pool.
+ * @method static Driver driver(?PoolType $type = null, bool $basic = false, bool $encrypted = false) Gets the registered driver by Cache Pool type. If `$type`
+ *                       is null, default Cache Pool will be used. If default Cache Pool is also not set using `Cache::setDefault()`, Filesystem
  *                       will be created and used. If basic is set to `true`, the returned driver will not support tagging feature
  *                       (_grouping cache items by tag and deleting using tag_).
  *

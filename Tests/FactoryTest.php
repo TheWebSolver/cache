@@ -63,52 +63,45 @@ class FactoryTest extends TestCase {
 	}
 
 	/**
-	 * @covers ::setDefaultPool
+	 * @covers ::setDefault
 	 * @covers ::isDefault
 	 * @covers ::isSupported
 	 */
 	public function testDefaultPoolSetterAndVariousValidators(): void {
 		$this->assertFalse( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
 		$this->assertFalse( $this->factory->isSupported( PoolType::FileSystem ) );
-
-		$directory = new Directory( location: self::TEST_CACHE_DIR );
-
-		$this->assertTrue(
-			$this->factory->setDefaultPool( PoolType::FileSystem, config: $directory )
-		);
-
+		$this->assertTrue( $this->factory->setDefault( PoolType::FileSystem ) );
 		$this->assertTrue( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
-
 		$this->assertFalse(
-			condition: $this->factory->setDefaultPool( PoolType::FileSystem, config: $directory ),
+			condition: $this->factory->setDefault( PoolType::FileSystem ),
 			message: 'Default Cache Pool must only be added once.'
 		);
 
-		$this->assertTrue( $this->factory->isSupported( PoolType::FileSystem ) );
 		$this->assertFalse( $this->factory->isSupported( PoolType::Database ) );
-	}
 
-	public function testDriverSetterAndGetter(): void {
+		$this->factory->setDriver(
+			type: PoolType::FileSystem,
+			config: new Directory( location: self::TEST_CACHE_DIR )
+		);
+
 		$this->assertInstanceOf(
 			expected: FilesystemTagAwareAdapter::class,
 			actual: $this->factory->driver()->adapter,
 			message: 'Factory must create a FileSystem Adapter that supports tagging feature, if no arguments passed.'
 		);
 
-		// Creates default File System Cache Pool without registering with "setDriver()" method.
-		// To prevent this behavior, user must bootstrap application with their own config
-		// before invoking "driver()" method without providing any of the PoolType.
-		$this->assertTrue( $this->factory->isSupported( PoolType::FileSystem ) );
-
 		$this->assertInstanceOf(
 			expected: FilesystemAdapter::class,
 			actual: $this->factory->driver( basic: true )->adapter,
 			message: 'Factory must create a FileSystem Adapter that does not support tagging feature.'
 		);
+	}
 
-		$pdoDsn = new PdoDsn( dsn: 'mysql:host=localhost;dbname=testDatabase' );
-
-		$this->factory->setDefaultPool( PoolType::Database, config: $pdoDsn );
+	public function testDriverSetterAndGetter(): void {
+		$this->factory->setDriver(
+			type: PoolType::Database,
+			config: new PdoDsn( dsn: 'mysql:host=localhost;dbname=testDatabase' )
+		);
 
 		$this->assertInstanceOf(
 			expected: TagAwareAdapter::class,

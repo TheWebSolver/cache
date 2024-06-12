@@ -55,9 +55,8 @@ enum PoolType: string {
 	public function tagAware( object|array $dto, bool $encrypted = false ): array {
 		$marshaller = self::resolveMarshaller( isEncrypted: $encrypted, isTagAware: true );
 		$config     = is_array( $dto ) ? $dto : array_values( $this->validateConfig( value: $dto ) );
-		$args       = array( ...$config, $marshaller );
 
-		return array( $this->createAdapter( $args ), $config );
+		return array( $this->createAdapter( args: array( ...$config, $marshaller ) ), $config );
 	}
 
 	public static function resolveMarshaller(

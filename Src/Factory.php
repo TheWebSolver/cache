@@ -15,8 +15,6 @@ use Psr\Container\ContainerInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
-use Symfony\Component\Cache\Marshaller\SodiumMarshaller;
-use Symfony\Component\Cache\Marshaller\DefaultMarshaller;
 
 final class Factory {
 	private static Factory $instance;
@@ -60,15 +58,12 @@ final class Factory {
 			|| isset( $this->drivers[ $this->awareKey( $type ) ] );
 	}
 
-	public function setDefaultPool( PoolType $type, object $config, bool $encrypted = false ): bool {
+	public function setDefault( PoolType $type ): bool {
 		if ( $this->default ?? false ) {
 			return false;
 		}
 
 		$this->default = $type;
-
-		// This may return false if driver was already set but is registered as default just now.
-		$this->setDriver( $type, $config, $encrypted );
 
 		return true;
 	}
@@ -98,7 +93,11 @@ final class Factory {
 	}
 
 	/** @throws LogicException When unregistered Cache Pool Type is being retrieved. */
-	public function driver( ?PoolType $type = null, bool $basic = false, bool $encrypted = false ): Driver {
+	public function driver(
+		?PoolType $type = null,
+		bool $basic = false,
+		bool $encrypted = false
+	): Driver {
 		return $this->resolveDriver( $type, $basic, $encrypted );
 	}
 
@@ -130,7 +129,9 @@ final class Factory {
 			);
 		}
 
-		$type ??= $this->getDefaultType() ?? $this->registerFileSystemDriverAsDefault();
+		$type ??= $this->getDefaultType() ?? throw new LogicException(
+			'Default driver not set. Use method ' . Cache::class . '::setDefault() to register it.'
+		);
 
 		return $basic
 			? $this->basic( $type, $encrypted )
@@ -139,12 +140,6 @@ final class Factory {
 
 	private function getDefaultType(): ?PoolType {
 		return $this->default ?? null;
-	}
-
-	private function registerFileSystemDriverAsDefault(): PoolType {
-		$this->setDriver( type: $default = PoolType::FileSystem, config: $this->directory );
-
-		return $default;
 	}
 
 	private function basic( PoolType $type, bool $encrypted ): Driver {
