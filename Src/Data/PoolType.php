@@ -44,10 +44,7 @@ enum PoolType: string {
 		$marshaller = new TagAwareMarshaller();
 		$marshaller = ! $encrypted
 			? $marshaller
-			: new SodiumMarshaller(
-				decryptionKeys: array_map( base64_decode( ... ), array: Cache::getDecryptionKeys() ),
-				marshaller: $marshaller
-			);
+			: new SodiumMarshaller( decryptionKeys: Cache::decryptCryptoKeys(), marshaller: $marshaller );
 
 		$config  = array_values( $this->validateConfig( $dto ) );
 		$args    = array( ...$config, $marshaller );

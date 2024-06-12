@@ -110,6 +110,17 @@ final class Factory {
 		return $this->crypto;
 	}
 
+	/** @return string[] */
+	public function decryptCryptoKeys(): array {
+		static $decrypted = null;
+
+		if ( null === $decrypted ) {
+			$decrypted = array_map( callback: base64_decode( ... ), array: $this->getDecryptionKeys() );
+		}
+
+		return $decrypted;
+	}
+
 	private function resolveDriver( ?PoolType $type, bool $basic, bool $encrypted ): Driver {
 		if ( $type && ! $this->isDefault( $type ) && ! $this->isSupported( $type ) ) {
 			throw new LogicException(
@@ -140,7 +151,9 @@ final class Factory {
 
 	private function basic( PoolType $type, bool $encrypted ): Driver {
 		$cachePool  = $type->adapter();
-		$marshaller = $encrypted ? new SodiumMarshaller( $this->crypto ) : new DefaultMarshaller();
+		$marshaller = $encrypted
+			? new SodiumMarshaller( decryptionKeys: $this->decryptCryptoKeys() )
+			: new DefaultMarshaller();
 
 		return $this->drivers[ $type->value ] ??= new Driver(
 			adapter: new $cachePool( ...array( ...$this->config[ $type->value ], $marshaller ) )
