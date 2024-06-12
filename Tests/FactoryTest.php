@@ -69,7 +69,7 @@ class FactoryTest extends TestCase {
 	 */
 	public function testDefaultPoolSetterAndVariousValidators(): void {
 		$this->assertFalse( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
-		$this->assertFalse( $this->factory->isSupported( PoolType::FileSystem ) );
+		$this->assertFalse( $this->factory->isSupported( PoolType::FileSystem, encrypted: false ) );
 		$this->assertTrue( $this->factory->setDefault( PoolType::FileSystem ) );
 		$this->assertTrue( condition: $this->factory->isDefault( type: PoolType::FileSystem ) );
 		$this->assertFalse(
@@ -77,7 +77,7 @@ class FactoryTest extends TestCase {
 			message: 'Default Cache Pool must only be added once.'
 		);
 
-		$this->assertFalse( $this->factory->isSupported( PoolType::Database ) );
+		$this->assertFalse( $this->factory->isSupported( PoolType::Database, encrypted: false ) );
 
 		$this->factory->setDriver(
 			type: PoolType::FileSystem,

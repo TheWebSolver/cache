@@ -13,8 +13,8 @@ use Symfony\Component\Cache\CacheItem;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 
 /**
- * @method static bool isDefault(PoolType $type)   Determines whether given pool type is set as default or not.
- * @method static bool isSupported(PoolType $type) Determines whether given pool type is supported or not.
+ * @method static bool isDefault(PoolType $type)                    Determines whether given pool type is set as default or not.
+ * @method static bool isSupported(PoolType $type, bool $encrypted) Determines whether given pool type is supported or not.
  *
  * @method static bool setDefault(PoolType $type)                                         Sets default cache pool for the application request lifecycle.
  * @method static void setEncryptionKeys(string|string[] $keys)                           Sets rotating encryption key(s) either from env or db.

@@ -53,9 +53,8 @@ final class Factory {
 		return $this->getDefaultType() === $type;
 	}
 
-	public function isSupported( PoolType $type ): bool {
-		return isset( $this->drivers[ $type->value ] )
-			|| isset( $this->drivers[ $this->awareKey( $type ) ] );
+	public function isSupported( PoolType $type, bool $encrypted ): bool {
+		return isset( $this->drivers[ $this->awareKey( $type, $encrypted ) ] );
 	}
 
 	public function setDefault( PoolType $type ): bool {
@@ -122,7 +121,7 @@ final class Factory {
 	}
 
 	private function resolveDriver( ?PoolType $type, bool $basic, bool $encrypted ): Driver {
-		if ( $type && ! $this->isDefault( $type ) && ! $this->isSupported( $type ) ) {
+		if ( $type && ! $this->isSupported( $type, $encrypted ) ) {
 			throw new LogicException(
 				'Cannot retrieve Driver for Cache Pool Type that is not registered. Use method '
 				. Cache::class . '::setDriver() to register Driver for: ' . $type->fqcn() . '.'
@@ -143,13 +142,21 @@ final class Factory {
 	}
 
 	private function basic( PoolType $type, bool $encrypted ): Driver {
-		return $this->drivers[ $type->value ] ??= new Driver(
+		return $this->drivers[ $this->basicKey( $type, $encrypted ) ] ??= new Driver(
 			adapter: $type->basic( config: $this->config[ $type->value ], encrypted: $encrypted )
 		);
 	}
 
-	private function awareKey( PoolType $type, bool $encrypted = false ): string {
-		return ( $encrypted ? 'encrypted:' : '' ) . 'tagAware:' . $type->value;
+	private function basicKey( PoolType $type, bool $encrypted ): string {
+		return $this->encryptedPrefix( $encrypted ) . $type->value;
+	}
+
+	private function awareKey( PoolType $type, bool $encrypted ): string {
+		return "{$this->encryptedPrefix( $encrypted )}tagAware:{$type->value}";
+	}
+
+	private function encryptedPrefix( bool $encrypted ): string {
+		return $encrypted ? 'encrypted:' : '';
 	}
 
 	private function get( PoolType $type, object|array $dto, bool $encrypted ): AdapterInterface {
