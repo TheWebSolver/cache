@@ -78,6 +78,7 @@ final class Factory {
 			return false;
 		}
 
+		$config                = $this->config[ $type->value ] ?? $config;
 		$this->drivers[ $key ] = new Driver(
 			adapter: $this->get( $type, dto: $config, encrypted: $encrypted ),
 			taggable: true
@@ -141,22 +142,14 @@ final class Factory {
 	}
 
 	private function registerFileSystemDriverAsDefault(): PoolType {
-		$this->setDriver(
-			type: $default = PoolType::FileSystem,
-			config: $this->directory
-		);
+		$this->setDriver( type: $default = PoolType::FileSystem, config: $this->directory );
 
 		return $default;
 	}
 
 	private function basic( PoolType $type, bool $encrypted ): Driver {
-		$cachePool  = $type->adapter();
-		$marshaller = $encrypted
-			? new SodiumMarshaller( decryptionKeys: $this->decryptCryptoKeys() )
-			: new DefaultMarshaller();
-
 		return $this->drivers[ $type->value ] ??= new Driver(
-			adapter: new $cachePool( ...array( ...$this->config[ $type->value ], $marshaller ) )
+			adapter: $type->basic( config: $this->config[ $type->value ], encrypted: $encrypted )
 		);
 	}
 
@@ -164,7 +157,12 @@ final class Factory {
 		return ( $encrypted ? 'encrypted:' : '' ) . 'tagAware:' . $type->value;
 	}
 
-	private function get( PoolType $type, object $dto, bool $encrypted ): AdapterInterface {
+	private function get( PoolType $type, object|array $dto, bool $encrypted ): AdapterInterface {
+		// The $dto may be doing a round-trip and updating config value with same value again.
+		// We are okay with that because the same type can have the same config value. The
+		// possibility of this happening is based on whether the driver registration is
+		// done twice. Once for non-encrypted version & one for the encrypted version.
+		// It is designed this way to prevent doing array conversion multiple times.
 		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware( $dto, $encrypted );
 
 		return $adapter;

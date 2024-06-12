@@ -16,7 +16,9 @@ use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Marshaller\SodiumMarshaller;
+use Symfony\Component\Cache\Marshaller\DefaultMarshaller;
 use Symfony\Component\Cache\Marshaller\TagAwareMarshaller;
+use Symfony\Component\Cache\Marshaller\MarshallerInterface;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 enum PoolType: string {
@@ -30,44 +32,67 @@ enum PoolType: string {
 		};
 	}
 
+	public function tagAwareAdapter(): string {
+		return match ( $this ) {
+			self::FileSystem => FilesystemTagAwareAdapter::class,
+			default          => TagAwareAdapter::class,
+		};
+	}
+
 	public function fqcn(): string {
 		return self::class . "::{$this->name}";
 	}
 
-	/** @return array{0:AdapterInterface,1:mixed[]} */
-	public function tagAware( object $dto, bool $encrypted = false ): array {
-		$tagAware = match ( $this ) {
-			self::FileSystem => FilesystemTagAwareAdapter::class,
-			default          => TagAwareAdapter::class,
-		};
+	/** @param mixed[] $config */
+	public function basic( array $config, bool $encrypted = false ): AdapterInterface {
+		$adapter    = $this->adapter();
+		$marshaller = self::resolveMarshaller( isEncrypted: $encrypted, isTagAware: false );
 
-		$marshaller = new TagAwareMarshaller();
-		$marshaller = ! $encrypted
+		return new $adapter( ...array( ...$config, $marshaller ) );
+	}
+
+	/** @return array{0:AdapterInterface,1:mixed[]} */
+	public function tagAware( object|array $dto, bool $encrypted = false ): array {
+		$marshaller = self::resolveMarshaller( isEncrypted: $encrypted, isTagAware: true );
+		$config     = is_array( $dto ) ? $dto : array_values( $this->validateConfig( value: $dto ) );
+		$args       = array( ...$config, $marshaller );
+
+		return array( $this->createAdapter( $args ), $config );
+	}
+
+	public static function resolveMarshaller(
+		bool $isEncrypted = false,
+		bool $isTagAware = true
+	): MarshallerInterface {
+		$marshaller = $isTagAware ? new TagAwareMarshaller() : new DefaultMarshaller();
+
+		return ! $isEncrypted
 			? $marshaller
 			: new SodiumMarshaller( decryptionKeys: Cache::decryptCryptoKeys(), marshaller: $marshaller );
+	}
 
-		$config  = array_values( $this->validateConfig( $dto ) );
-		$args    = array( ...$config, $marshaller );
-		$default = $this->adapter();
-		$adapter = TagAwareAdapter::class === $tagAware
+	/** @param mixed[] $args */
+	private function createAdapter( array $args ): AdapterInterface {
+		$default  = $this->adapter();
+		$tagAware = $this->tagAwareAdapter();
+
+		return TagAwareAdapter::class === $tagAware
 			? new TagAwareAdapter( new $default( ...$args ) )
 			: new $tagAware( ...$args );
-
-		return array( $adapter, $config );
 	}
 
 	/**
 	 * @return array<string,mixed>
 	 * @throws InvalidArgumentException When invalid configuration object given.
 	 */
-	private function validateConfig( object $config ): array {
+	private function validateConfig( object $value ): array {
 		$class = match ( $this ) {
 			self::FileSystem => Directory::class,
 			self::Database   => PdoDsn::class,
 		};
 
-		if ( is_a( $config, $class ) ) {
-			return (array) $config;
+		if ( is_a( $value, $class ) ) {
+			return (array) $value;
 		}
 
 		throw new InvalidArgumentException(
