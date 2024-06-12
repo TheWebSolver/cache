@@ -67,7 +67,10 @@ final class Factory {
 
 		$this->default = $type;
 
-		return $this->setDriver( $type, $config, $encrypted );
+		// This may return false if driver was already set but is registered as default just now.
+		$this->setDriver( $type, $config, $encrypted );
+
+		return true;
 	}
 
 	public function setDriver( PoolType $type, object $config, bool $encrypted = false ): bool {
@@ -83,8 +86,14 @@ final class Factory {
 		return true;
 	}
 
-	public function setEncryptionKeys( string|array $keys ): void {
+	public function setEncryptionKeys( string|array $keys ): bool {
+		if ( ! empty( $this->crypto ) ) {
+			return false;
+		}
+
 		$this->crypto = $this->checkCrypto( $keys );
+
+		return true;
 	}
 
 	/** @throws LogicException When unregistered Cache Pool Type is being retrieved. */
