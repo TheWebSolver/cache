@@ -101,6 +101,10 @@ final class Factory {
 		return $this->resolveDriver( $type, $basic, $encrypted );
 	}
 
+	public function encrypted( ?PoolType $type = null, bool $basic = false ): Driver {
+		return $this->driver( $type, $basic, encrypted: true );
+	}
+
 	/** @return string[] */
 	public function getDecryptionKeys(): array {
 		return $this->crypto;
