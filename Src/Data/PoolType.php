@@ -10,7 +10,7 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Lib\Cache\Data;
 
 use InvalidArgumentException;
-use TheWebSolver\Codegarage\Lib\Cache\Factory;
+use TheWebSolver\Codegarage\Lib\Cache\Cache;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
@@ -42,9 +42,12 @@ enum PoolType: string {
 		};
 
 		$marshaller = new TagAwareMarshaller();
-		$marshaller = $encrypted
-			? new SodiumMarshaller( Factory::start()->getDecryptionKeys(), $marshaller )
-			: $marshaller;
+		$marshaller = ! $encrypted
+			? $marshaller
+			: new SodiumMarshaller(
+				decryptionKeys: array_map( base64_decode( ... ), array: Cache::getDecryptionKeys() ),
+				marshaller: $marshaller
+			);
 
 		$config  = array_values( $this->validateConfig( $dto ) );
 		$args    = array( ...$config, $marshaller );
