@@ -46,7 +46,8 @@ use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
  * @method static bool flush()                             Removes all items inside the current cache pool.
  * @method static bool isTaggable()                        Returns `true` if is a taggable cache pool.
  *
- * @method static string[] getDecryptionKeys() Gets the encryption keys used for encrypting cache value.
+ * @method static string[] getDecryptionKeys() Gets encryption keys used for decrypting cache value.
+ * @method static string[] decryptCryptoKeys() Gets the decoded version of encryption keys used for decrypting cache value.
  */
 class Cache {
 	/** @throws \BadMethodCallException When undefined method is invoked. */
