@@ -2,7 +2,7 @@
 /**
  * Driver that provides cache pool on-demand.
  *
- * @package TheWebSolver\Codegarage\Library
+ * @package TheWebSolver\Codegarage\Cache
  */
 
 declare( strict_types = 1 );
@@ -25,7 +25,8 @@ class Driver {
 
 	public function __construct(
 		public readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter,
-		private readonly bool $taggable = false
+		public readonly bool $taggable = false,
+		public readonly bool $encrypted = false
 	) {}
 
 	/** @param string|string[] $tag */

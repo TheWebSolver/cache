@@ -2,7 +2,7 @@
 /**
  * The cache drivers.
  *
- * @package TheWebSolver\Codegarage\Library
+ * @package TheWebSolver\Codegarage\Cache
  */
 
 declare( strict_types = 1 );
@@ -13,18 +13,17 @@ use Symfony\Component\Cache\CacheItem;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 
 /**
- * @method static bool isDefault(PoolType $type)                    Determines whether given pool type is set as default or not.
- * @method static bool isSupported(PoolType $type, bool $encrypted) Determines whether given pool type is supported or not.
- *
- * @method static bool setDefault(PoolType $type)                                         Sets default cache pool for the application request lifecycle.
- * @method static void setEncryptionKeys(string|string[] $keys)                           Sets rotating encryption key(s) either from env or db.
- * @method static bool setDriver(PoolType $type, object $config, bool $encrypted = false) Sets driver to be used with `Cache::driver()`.
- *
+ * @method static void setEncryptionKeys(string|string[] $keys)                                       Sets rotating encryption key(s) either from env or db.
+ * @method static void configure(Configurable $default, Configurable ...$additional)                  Bootstraps default and/or additional Cache Pools.
+ * @method static bool isDefault(PoolType $type)                                                      Determines whether given pool type is set as default or not.
+ * @method static bool isSupported(PoolType $type, bool $encrypted = false, bool $basic = false)      Determines whether given pool type is supported or not.
  * @method static Driver encrypted(?PoolType $type = null, bool $basic = false)                       Gets the driver that encrypts values in the Cache Pool.
- * @method static Driver driver(?PoolType $type = null, bool $basic = false, bool $encrypted = false) Gets the registered driver by Cache Pool type. If `$type`
- *                       is null, default Cache Pool will be used. If default Cache Pool is also not set using `Cache::setDefault()`, Filesystem
- *                       will be created and used. If basic is set to `true`, the returned driver will not support tagging feature
- *                       (_grouping cache items by tag and deleting using tag_).
+ * @method static Driver driver(?PoolType $type = null, bool $basic = false, bool $encrypted = false) Gets the registered driver by Cache Pool type. Defaults
+ *                                                                                                    to the Cache Pool Type that was set as default value
+ *                                                                                                    when bootstrapping with `Cache::configure()`, method.
+ * @method static string[] getDecryptionKeys()                                                        Gets encryption keys used for decrypting cache value.
+ * @method static string[] decryptCryptoKeys()                                                        Gets the decoded version of encryption keys used for
+ *                                                                                                    decrypting cache value.
  *
  * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
  *
@@ -45,9 +44,6 @@ use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
  *                                                         Only works if `Cache::tagged()` is used.
  * @method static bool flush()                             Removes all items inside the current cache pool.
  * @method static bool isTaggable()                        Returns `true` if is a taggable cache pool.
- *
- * @method static string[] getDecryptionKeys() Gets encryption keys used for decrypting cache value.
- * @method static string[] decryptCryptoKeys() Gets the decoded version of encryption keys used for decrypting cache value.
  */
 class Cache {
 	/** @throws \BadMethodCallException When undefined method is invoked. */
