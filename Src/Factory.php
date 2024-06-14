@@ -31,6 +31,9 @@ final class Factory {
 
 	public readonly Directory $directory;
 
+	/** @var bool[] */
+	private array $configured;
+
 	public function __construct() {
 		$this->directory = new Directory( namespace: 'kyasa', location: dirname( __DIR__ ) . '/tmp/' );
 	}
@@ -50,22 +53,23 @@ final class Factory {
 	}
 
 	public function setEncryptionKeys( string|array $keys ): bool {
-		if ( ! empty( $this->crypto ) ) {
-			return false;
-		}
-
-		$this->crypto = PoolType::checkCrypto( $keys );
-
-		return true;
+		return ! empty( $this->crypto )
+			? false
+			: ! empty( $this->crypto = array_unique( array_filter( (array) $keys ) ) );
 	}
 
 	/** @throws InvalidArgumentException When unsupported configuration given. */
-	public function configure( Configurable $default, Configurable ...$additional ): void {
+	public function configure( Configurable $default, Configurable ...$additional ): bool {
 		if ( $type = $this->register( config: $default ) ) {
 			$this->default = $type;
 		}
 
 		array_walk( array: $additional, callback: $this->register( ... ) );
+
+		$bootstrapped     = $this->configured;
+		$this->configured = array();
+
+		return ! in_array( needle: false, haystack: $bootstrapped, strict: true );
 	}
 
 	public function isDefault( PoolType $type ): bool {
@@ -86,18 +90,11 @@ final class Factory {
 		return $this->driver( $type, $basic, encrypted: true );
 	}
 
-	/**
-	 * @param ?PoolType     $type       The Pool Type
-	 * @param bool          $basic      Whether to get Driver with Adapter that doesn't support Tag.
-	 * @param bool|string[] $encrypted  Whether to get encryption supported Driver. Almost always
-	 *                                  pass a boolean value (unless you have specific need
-	 *                                  to pass decryption keys).
-	 * @throws LogicException When unregistered Cache Pool Type is being retrieved.
-	 */
+	/** @throws LogicException When unregistered Cache Pool Type is being retrieved. */
 	public function driver(
 		?PoolType $type = null,
 		bool $basic = false,
-		bool|array $encrypted = false
+		bool $encrypted = false
 	): Driver {
 		$type = $this->validateResolving( $type );
 
@@ -121,19 +118,18 @@ final class Factory {
 	}
 
 	private function register( Configurable $config ): ?PoolType {
-		$type = PoolType::fromConfiguration( dto: $config );
+		$type = PoolType::fromConfiguration( $config );
+		$key  = $this->awareKey( $type, encrypted: false );
 
-		return ! isset( $this->drivers[ $key = $this->awareKey( $type, encrypted: false ) ] )
-			? $this->createDriver( $key, $type, $config )
-			: null;
-	}
+		if ( isset( $this->drivers[ $key ] ) ) {
+			$this->configured[] = false;
 
-	private function createDriver( string $key, PoolType $type, Configurable $config ): PoolType {
-		$this->drivers[ $key ] = new Driver(
-			adapter: $this->get( false, $type, dto: $this->config[ $type->value ] ?? $config ),
-			taggable: true,
-			encrypted: false
-		);
+			return null;
+		}
+
+		$this->configured[]    = true;
+		$adapter               = $this->get( $type, $config, encrypted: false );
+		$this->drivers[ $key ] = new Driver( $adapter, taggable: true, encrypted: false );
 
 		return $type;
 	}
@@ -142,33 +138,28 @@ final class Factory {
 		return $this->default ?? null;
 	}
 
-	/** @param bool|string[] $encrypted */
-	private function basic( bool|array $encrypted, PoolType $type ): Driver {
-		$needsEncryption = PoolType::needsEncryption( keys: $encrypted );
-		$key             = $this->basicKey( $type, encrypted: $needsEncryption );
+	private function basic( bool $encrypted, PoolType $type ): Driver {
+		$key = $this->basicKey( $type, $encrypted );
 
 		// Create Basic Driver on demand.
 		return $this->drivers[ $key ] ??= new Driver(
-			adapter: $type->basic( config: $this->config[ $type->value ], encrypted: $encrypted ),
+			adapter: $type->basic( $this->config[ $type->value ], $this->decryptCryptoKeys() ),
 			taggable: false,
-			encrypted: $needsEncryption
+			encrypted: $encrypted
 		);
 	}
 
-	/** @param bool|string[] $encrypted */
-	private function taggable( bool|array $encrypted, PoolType $type ): Driver {
-		$key = $this->awareKey( $type, encrypted: PoolType::needsEncryption( keys: $encrypted ) );
+	private function taggable( bool $encrypted, PoolType $type ): Driver {
+		$key = $this->awareKey( $type, $encrypted );
 
 		if ( ! $encrypted ) {
 			return $this->drivers[ $key ];
 		}
 
+		$adapter = $this->get( $type, config: $this->config[ $type->value ], encrypted: $encrypted );
+
 		// Create Encrypted driver on demand.
-		return $this->drivers[ $key ] ??= new Driver(
-			adapter: $this->get( $encrypted, $type, dto: $this->config[ $type->value ] ),
-			taggable: true,
-			encrypted: true
-		);
+		return $this->drivers[ $key ] ??= new Driver( $adapter, taggable: true, encrypted: $encrypted );
 	}
 
 	private function basicKey( PoolType $type, bool $encrypted ): string {
@@ -183,18 +174,15 @@ final class Factory {
 		return $encrypted ? 'encrypted:' : '';
 	}
 
-	/** @param bool|string[] $encrypted */
 	private function get(
-		bool|array $encrypted,
 		PoolType $type,
-		Configurable|array $dto,
+		Configurable|array $config,
+		bool $encrypted = false
 	): AdapterInterface {
-		// The $dto may be doing a round-trip and updating config value with same value again.
-		// We are okay with that because the same type can have the same config value. The
-		// possibility of this happening is based on whether the driver registration is
-		// done twice. Once for non-encrypted version & one for the encrypted version.
-		// It is designed this way to prevent doing array conversion multiple times.
-		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware( $dto, $encrypted );
+		[ $adapter, $this->config[ $type->value ] ] = $type->tagAware(
+			config: $config,
+			encryptionKeys: $encrypted ? $this->decryptCryptoKeys() : null
+		);
 
 		return $adapter;
 	}

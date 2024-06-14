@@ -23,6 +23,11 @@ use Symfony\Component\Cache\Marshaller\MarshallerInterface;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 class PoolTypeTest extends TestCase {
+	/** @return string[] */
+	private function getDecryptionKeysForMarshaller(): array {
+		return array( base64_decode( FactoryTest::TEST_CRYPTO_KEY ) );
+	}
+
 	/** @dataProvider provideConfigurationDto */
 	public function testPoolTypeFromConfigurationDto(
 		Configurable $dto,
@@ -128,41 +133,24 @@ class PoolTypeTest extends TestCase {
 	}
 
 	/**
-	 * @param string        $marshaller
-	 * @param bool|string[] $encrypt
+	 * @param string    $marshaller
+	 * @param ?string[] $keys
 	 * @dataProvider provideMarshallerCreationArgs
 	 */
-	public function testMarshallerGetter( string $marshaller, bool|array $encrypt, bool $taggable ): void {
+	public function testMarshaller( string $marshaller, ?array $keys, bool $taggable ): void {
 		$this->assertInstanceOf(
 			expected: $marshaller,
-			actual: PoolType::resolveMarshaller( isEncrypted: $encrypt, isTagAware: $taggable )
+			actual: PoolType::resolveMarshaller( encryptionKeys: $keys, isTagAware: $taggable )
 		);
 	}
 
 	/** @return array<array{0:class-string<MarshallerInterface,1:bool,2:bool}> */
 	public function provideMarshallerCreationArgs(): array {
 		return array(
-			array( DefaultMarshaller::class, false, false ),
-			array( TagAwareMarshaller::class, false, true ),
-			array( SodiumMarshaller::class, FactoryTest::getDecryptionKeysForMarshaller(), false ),
-			array( SodiumMarshaller::class, FactoryTest::getDecryptionKeysForMarshaller(), true ),
-		);
-	}
-
-	/**
-	 * @param bool|string[] $keys
-	 * @dataProvider provideEncryptionKeys
-	 */
-	public function testEncryptionNeeded( bool|array $keys, bool $expected ): void {
-		$this->assertSame( $expected, actual: PoolType::needsEncryption( $keys ) );
-	}
-
-	public function provideEncryptionKeys(): array {
-		return array(
-			array( true, true ),
-			array( false, false ),
-			array( array(), false ),
-			array( array( '' ), false ),
+			array( DefaultMarshaller::class, null, false ),
+			array( TagAwareMarshaller::class, null, true ),
+			array( SodiumMarshaller::class, $this->getDecryptionKeysForMarshaller(), false ),
+			array( SodiumMarshaller::class, $this->getDecryptionKeysForMarshaller(), true ),
 		);
 	}
 }

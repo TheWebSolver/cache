@@ -27,13 +27,15 @@ enum PoolType: string {
 	case Database   = 'sqlDatabase';
 
 	/** @throws InvalidArgumentException When unsupported configuration given. */
-	public static function fromConfiguration( Configurable $dto ): self {
-		$class = $dto::class;
+	public static function fromConfiguration( Configurable $config ): self {
+		$class = $config::class;
 
 		return match ( $class ) {
-			default          => throw new InvalidArgumentException( "Invalid configuration: {$class}" ),
+			Directory::class => self::FileSystem,
 			PdoDsn::class    => self::Database,
-			Directory::class => self::FileSystem
+			default          => throw new InvalidArgumentException(
+				"Unsupported or Invalid Configuration class: {$class}"
+			),
 		};
 	}
 
@@ -45,14 +47,14 @@ enum PoolType: string {
 		};
 	}
 
-	public function isValid( Configurable $dto ): bool {
-		return $dto::class === $this->dto();
+	public function isValid( Configurable $config ): bool {
+		return $config::class === $this->dto();
 	}
 
 	/** @throws InvalidArgumentException When invalid configuration object given. */
-	public function validate( Configurable $dto ): Configurable {
-		return $this->isValid( $dto ) ? $dto : throw new InvalidArgumentException(
-			$this->fqcn() . ' only accepts configuration object of class "' . $dto::class . '".'
+	public function validate( Configurable $config ): Configurable {
+		return $this->isValid( $config ) ? $config : throw new InvalidArgumentException(
+			$this->fqcn() . ' only accepts configuration object of class "' . $config::class . '".'
 		);
 	}
 
@@ -75,54 +77,38 @@ enum PoolType: string {
 	}
 
 	/**
-	 * @param mixed[]       $config
-	 * @param bool|string[] $encrypted
+	 * @param mixed[]   $config
+	 * @param ?string[] $encryptionKeys
 	 */
-	public function basic(
-		array $config,
-		bool|array $encrypted = false
-	): AdapterInterface {
+	public function basic( array $config, ?array $encryptionKeys = null ): AdapterInterface {
 		$adapter    = $this->adapter();
-		$marshaller = self::resolveMarshaller( isEncrypted: $encrypted, isTagAware: false );
+		$marshaller = self::resolveMarshaller( $encryptionKeys, isTagAware: false );
 
 		return new $adapter( ...array( ...$config, $marshaller ) );
 	}
 
 	/**
-	 * @param Configurable|mixed[] $dto
-	 * @param bool|string[]        $encrypted
+	 * @param Configurable|mixed[] $config
+	 * @param ?string[]            $encryptionKeys
 	 * @return array{0:AdapterInterface,1:mixed[]}
 	 */
-	public function tagAware(
-		Configurable|array $dto,
-		bool|array $encrypted = false
-	): array {
-		$marshaller = self::resolveMarshaller( isEncrypted: $encrypted, isTagAware: true );
-		$config     = $dto instanceof Configurable ? $this->validate( $dto )->toArray() : $dto;
+	public function tagAware( Configurable|array $config, ?array $encryptionKeys = null ): array {
+		$marshaller = self::resolveMarshaller( $encryptionKeys, isTagAware: true );
+		$config     = $config instanceof Configurable ? $this->validate( $config )->toArray() : $config;
 
 		return array( $this->createAdapter( args: array( ...$config, $marshaller ) ), $config );
 	}
 
-	/**  @param bool|string[] $isEncrypted  */
+	/** @param ?string[] $encryptionKeys */
 	public static function resolveMarshaller(
-		bool|array $isEncrypted = false,
+		?array $encryptionKeys = null,
 		bool $isTagAware = true
 	): MarshallerInterface {
 		$marshaller = $isTagAware ? new TagAwareMarshaller() : new DefaultMarshaller();
-		$keys       = ( true || false ) !== $isEncrypted ? $isEncrypted : Cache::decryptCryptoKeys();
 
-		return ! self::needsEncryption( $isEncrypted )
+		return empty( $encryptionKeys )
 			? $marshaller
-			: new SodiumMarshaller( decryptionKeys: $keys, marshaller: $marshaller );
-	}
-
-	/** @param bool|string[] $keys */
-	public static function needsEncryption( bool|array $keys ): bool {
-		return is_bool( $keys ) ? $keys : ! empty( self::checkCrypto( $keys ) );
-	}
-
-	public static function checkCrypto( string|array $keys ): array {
-		return array_unique( array_filter( (array) $keys ) );
+			: new SodiumMarshaller( decryptionKeys: $encryptionKeys, marshaller: $marshaller );
 	}
 
 	/** @param mixed[] $args */

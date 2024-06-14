@@ -56,11 +56,6 @@ class FactoryTest extends TestCase {
 		return rmdir( $dir ) && $removedEverything;
 	}
 
-	/** @return string[] */
-	public static function getDecryptionKeysForMarshaller(): array {
-		return array( base64_decode( self::TEST_CRYPTO_KEY ) );
-	}
-
 	public function testSingleTonOrFromContainer(): void {
 		$app = $this->createMock( ContainerInterface::class );
 
@@ -76,18 +71,25 @@ class FactoryTest extends TestCase {
 	public function testFactoryConfigurationBootstrapIntegration(): Factory {
 		$this->assertFalse( $this->factory->isDefault( PoolType::FileSystem ) );
 
-		$this->factory->configure( default: $this->defaultConfig );
-
-		$this->assertTrue( $this->factory->isDefault( PoolType::FileSystem ) );
-		$this->assertTrue( $this->factory->isSupported( PoolType::FileSystem ) );
-		$this->assertFalse( $this->factory->isSupported( PoolType::Database ) );
-
-		$this->factory->configure(
+		$configured = $this->factory->configure(
 			$this->defaultConfig,
 			new PdoDsn( dsn: self::TEST_CONN_DSN )
 		);
 
+		$this->assertTrue(
+			condition: $configured,
+			message: 'Returns true only if default and all additional configs are being bootstrapped'
+			. ' only for the first time.'
+		);
+
+		$this->assertTrue( $this->factory->isDefault( PoolType::FileSystem ) );
+		$this->assertTrue( $this->factory->isSupported( PoolType::FileSystem ) );
 		$this->assertTrue( $this->factory->isSupported( PoolType::Database ) );
+
+		$this->assertFalse(
+			condition: $this->factory->configure( default: $this->defaultConfig ),
+			message: 'Same config, either default or additional cannot be bootstrapped more than once.'
+		);
 
 		return $this->factory;
 	}
@@ -105,44 +107,50 @@ class FactoryTest extends TestCase {
 	 * @depends testFactoryConfigurationBootstrapIntegration
 	 */
 	public function testFactoryAndItsIntegration( Factory $factory ): void {
+		$this->assertTrue( $factory->setEncryptionKeys( self::TEST_CRYPTO_KEY ) );
+		$this->assertFalse( $factory->setEncryptionKeys( self::TEST_CRYPTO_KEY ) );
+		$this->assertSame( self::TEST_CRYPTO_KEY, $factory->getDecryptionKeys()[0] );
+		$this->assertSame(
+			expected: base64_decode( self::TEST_CRYPTO_KEY ),
+			actual: $factory->decryptCryptoKeys()[0]
+		);
+
 		$this->assertInstanceOf(
 			expected: FilesystemTagAwareAdapter::class,
 			actual: $factory->driver()->adapter,
-			message: 'Factory must create driver with FileSystem Adapter that'
-			. ' supports tagging feature, if no arguments passed.'
+			message: 'Taggable Cache Pool Driver must be available on demand for default Pool Type.'
 		);
 
 		$this->assertInstanceOf(
 			expected: FilesystemAdapter::class,
 			actual: $factory->driver( basic: true )->adapter,
-			message: 'Factory must create driver with FileSystem Adapter that'
-			. ' does not support tagging feature if basic set to "true".'
+			message: 'Non-taggable Cache Pool Driver must be available on demand for default Pool Type.'
 		);
 
-		$keys = $this->getDecryptionKeysForMarshaller();
-
 		$this->assertFalse( $factory->isSupported( PoolType::FileSystem, encrypted: true ) );
-		$this->assertTrue( $factory->driver( basic: true, encrypted: $keys )->encrypted );
+		$this->assertTrue( $factory->driver( basic: true, encrypted: true )->encrypted );
 		$this->assertTrue(
-			$factory->isSupported( PoolType::FileSystem, encrypted: true, basic: true )
+			condition: $factory->isSupported( PoolType::FileSystem, encrypted: true, basic: true ),
+			message: 'Encryption supported Non-taggable Cache Pool Driver must be available on demand.'
 		);
 
 		$this->assertInstanceOf(
 			expected: TagAwareAdapter::class,
 			actual: $factory->driver( type: PoolType::Database )->adapter,
-			message: 'Factory must create driver with TagAware Adapter that supports'
-			. ' tagging feature when type passed but basic is set to "false".'
+			message: 'Taggable Cache Pool Driver must be available on demand for given Pool Type.'
 		);
 
 		$this->assertFalse( $factory->isSupported( PoolType::Database, encrypted: true ) );
-		$this->assertTrue( $factory->driver( type: PoolType::Database, encrypted: $keys )->encrypted );
-		$this->assertTrue( $factory->isSupported( PoolType::Database, encrypted: true ) );
+		$this->assertTrue( $factory->driver( type: PoolType::Database, encrypted: true )->encrypted );
+		$this->assertTrue(
+			condition: $factory->isSupported( PoolType::Database, encrypted: true ),
+			message: 'Encryption supported Taggable Cache Pool Driver must be available on demand.'
+		);
 
 		$this->assertInstanceOf(
 			expected: PdoAdapter::class,
 			actual: $factory->driver( type: PoolType::Database, basic: true )->adapter,
-			message: 'Factory must create driver with Pdo Adapter that does not'
-			. ' support tagging feature if basic is set to "true".'
+			message: 'Non-taggable Cache Pool Driver must be available on demand for given Pool Type.'
 		);
 	}
 
