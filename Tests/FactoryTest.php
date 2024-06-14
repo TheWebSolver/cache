@@ -128,7 +128,7 @@ class FactoryTest extends TestCase {
 		);
 
 		$this->assertFalse( $factory->isSupported( PoolType::FileSystem, encrypted: true ) );
-		$this->assertTrue( $factory->driver( basic: true, encrypted: true )->encrypted );
+		$this->assertTrue( $factory->encrypted( basic: true )->encrypted );
 		$this->assertTrue(
 			condition: $factory->isSupported( PoolType::FileSystem, encrypted: true, basic: true ),
 			message: 'Encryption supported Non-taggable Cache Pool Driver must be available on demand.'
