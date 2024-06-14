@@ -13,8 +13,8 @@ use Symfony\Component\Cache\CacheItem;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 
 /**
- * @method static void setEncryptionKeys(string|string[] $keys)                                       Sets rotating encryption key(s) either from env or db.
- * @method static void configure(Configurable $default, Configurable ...$additional)                  Bootstraps default and/or additional Cache Pools.
+ * @method static bool setEncryptionKeys(string|string[] $keys)                                       Sets rotating encryption key(s) either from env or db.
+ * @method static bool configure(Configurable $default, Configurable ...$additional)                  Bootstraps default and/or additional Cache Pools.
  * @method static bool isDefault(PoolType $type)                                                      Determines whether given pool type is set as default or not.
  * @method static bool isSupported(PoolType $type, bool $encrypted = false, bool $basic = false)      Determines whether given pool type is supported or not.
  * @method static Driver encrypted(?PoolType $type = null, bool $basic = false)                       Gets the driver that encrypts values in the Cache Pool.
@@ -25,17 +25,15 @@ use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
  * @method static string[] decryptCryptoKeys()                                                        Gets the decoded version of encryption keys used for
  *                                                                                                    decrypting cache value.
  *
- * @method static Driver tagged(string|string[] $tags) Registers tags to be added to the new cache item.
- *
- * @method static ?CacheItem item(string $key) Gets the item if it's value is cached', `null` otherwise.
- * @method static ?CacheItem add(string $key, mixed $value, Time|\DateTimeInterface|\DateInterval|int|null $time = null) Flashes
- *                           cache item instance once if value is cached, `null` thereafter.
+ * @method static Driver     tagged(string|string[] $tags) Registers tags to be added to the new cache item.
+ * @method static ?CacheItem item(string $key)             Gets the item if it's value is cached', `null` otherwise.
+ * @method static ?CacheItem add(string $key, mixed $value, Time|\DateTimeInterface|\DateInterval|int|null $time = null)
+ *                                                         Flashes cache item instance once if value is cached, `null` thereafter.
  * @method static ?CacheItem addComputed(string $key, \Closure $value, Time|\DateTimeInterface|\DateInterval|int|null $time = null)
- *                           Provides option to do computation task only if cache misses. Eg: heavy database call.
- * @method static ?CacheItem until(\DateTimeInterface $time, string $key, mixed $value)   Adds an item which expires at the given time.
- * @method static ?CacheItem for(Time|\DateInterval|int $time, string $key, mixed $value) Adds an item which expires after
- *                           given seconds or interval.
- *
+ *                                                         Provides option to do computation task only if cache misses. Eg: heavy database call.
+ * @method static ?CacheItem until(\DateTimeInterface $time, string $key, mixed $value)
+ *                                                         Adds an item which expires at the given time.
+ * @method static ?CacheItem for(Time|\DateInterval|int $time, string $key, mixed $value)
  * @method static bool persist(string $key, mixed $value)  Returns `true` if item is cached indefinitely (until deleted manually),
  *                                                         `false` otherwise.
  * @method static bool delete(string|string[] $key)        Removes cached item(s) with given key(s).
