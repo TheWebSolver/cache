@@ -18,13 +18,14 @@ use Symfony\Component\Cache\PruneableInterface;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Time;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
+use Symfony\Component\Cache\Adapter\AdapterInterface;
 use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
 
 class Driver {
 	private array $tags = array();
 
 	public function __construct(
-		public readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter $adapter,
+		public readonly AbstractAdapter|TagAwareAdapter|AbstractTagAwareAdapter|AdapterInterface $adapter,
 		public readonly bool $taggable = false,
 		public readonly bool $encrypted = false
 	) {}
@@ -44,6 +45,7 @@ class Driver {
 		string $key,
 		mixed $value,
 		Time|DateTimeInterface|DateInterval|int|null $time = null
+		/* $beta = `null` => Symfony handles re-computation; `true` => Force recomputation. */
 	): ?CacheItem {
 		$cached = null;
 
@@ -55,7 +57,8 @@ class Driver {
 				$cached = $item;
 
 				return $value instanceof Closure ? $value( $item ) : $value;
-			}
+			},
+			beta: func_num_args() === 4 ? \INF : null
 		);
 
 		return $cached;
@@ -79,6 +82,37 @@ class Driver {
 
 	public function persist( string $key, mixed $value ): bool {
 		return null !== $this->add( $key, $value, time: null );
+	}
+
+	public function pull( string|array $key ): ?CacheItem {
+		$this->updateTag();
+
+		if ( $item = $this->item( $key ) ) {
+			$this->delete( $key );
+
+			return $item;
+		}
+
+		return null;
+	}
+
+	public function update(
+		string $key,
+		mixed $value,
+		Time|DateTimeInterface|DateInterval|int|null $time = null
+	): ?CacheItem {
+		$item       = $this->add( $key, $value, $time, /* Recompute Cached Item */ true );
+		$this->tags = $item?->getMetadata()['tags'] ?? array();
+
+		return $item;
+	}
+
+	public function increase( string $key, int $by = 1 ): ?CacheItem {
+		return $this->updateIntValue( $key, $by, fn( int $current, int $by ): int => $current + $by );
+	}
+
+	public function decrease( string $key, int $by = 1 ): ?CacheItem {
+		return $this->updateIntValue( $key, $by, fn( int $current, int $by ): int => $current - $by );
 	}
 
 	/** @var string|string[] $key */
@@ -121,14 +155,28 @@ class Driver {
 	}
 
 	private function updateTag( mixed $item = null ): void {
-		if ( empty( $this->tags ) ) {
+		if ( ! $this->isTaggable() || ! $item instanceof CacheItem ) {
 			return;
 		}
 
-		if ( $this->isTaggable() && $item instanceof CacheItem ) {
-			$item->tag( $this->tags );
+		// Assign user provided tags, or from tags previously set on item (if any).
+		$tags = ! empty( $this->tags )
+			? $this->tags
+			: ( $item->getMetadata()[ CacheItem::METADATA_TAGS ] ?? array() );
+
+		// Flush user provided tags so it'll not interfere with next item that'll be added to the pool.
+		$this->tags = array();
+
+		if ( ! empty( $tags ) ) {
+			$item->tag( $tags );
+		}
+	}
+
+	private function updateIntValue( string $key, int $by, Closure $compute ): ?CacheItem {
+		if ( ! is_numeric( $current = ( $this->item( $key )?->get() ?? 0 ) ) ) {
+			return null;
 		}
 
-		$this->tags = array();
+		return $current ? $this->update( $key, value: $compute( (int) $current, $by ) ) : null;
 	}
 }
