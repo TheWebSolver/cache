@@ -7,35 +7,34 @@
 
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
+use TheWebSolver\Codegarage\Lib\Cache\Driver;
 use TheWebSolver\Codegarage\Lib\Cache\Factory;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PdoDsn;
-use TheWebSolver\Codegarage\Lib\Cache\Configurable;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use TheWebSolver\Codegarage\Lib\Cache\Data\InMemoryArray;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 /** @coversDefaultClass \TheWebSolver\Codegarage\Lib\Cache\Factory */
 class FactoryTest extends TestCase {
 	private Factory $factory;
-	private Configurable $defaultConfig;
 
 	public const TEST_CACHE_DIR  = __DIR__ . '/cache';
 	public const TEST_CONN_DSN   = 'mysql:host=localhost;dbname=testDatabase';
 	public const TEST_CRYPTO_KEY = 'FzuBrVYVR3Ls6AIJgMTEqnM6/XBiTWA+Qd6JMr10yOQzCLr5fOOHVbxbw+3cD0g5gidAizoYUspk6eefH/w3WA==';
 
 	protected function setUp(): void {
-		$this->factory       = new Factory();
-		$this->defaultConfig = new Directory( location: self::TEST_CACHE_DIR );
+		$this->factory = new Factory();
 	}
 
 	protected function tearDown(): void {
 		$this->flushTestCacheDir( dir: self::TEST_CACHE_DIR );
 	}
 
-	private function flushTestCacheDir( string $dir ): bool {
+	public static function flushTestCacheDir( string $dir ): bool {
 		$removedEverything = false;
 
 		if ( ! is_dir( $dir ) ) {
@@ -49,7 +48,7 @@ class FactoryTest extends TestCase {
 
 			$maybeDir          = $dir . DIRECTORY_SEPARATOR . $content;
 			$removedEverything = is_dir( $maybeDir ) && ! is_link( $maybeDir )
-				? $this->flushTestCacheDir( $maybeDir )
+				? self::flushTestCacheDir( $maybeDir )
 				: unlink( $maybeDir );
 		}
 
@@ -72,7 +71,7 @@ class FactoryTest extends TestCase {
 		$this->assertFalse( $this->factory->isDefault( PoolType::FileSystem ) );
 
 		$configured = $this->factory->configure(
-			$this->defaultConfig,
+			new Directory( location: self::TEST_CACHE_DIR ),
 			new PdoDsn( dsn: self::TEST_CONN_DSN )
 		);
 
@@ -87,7 +86,7 @@ class FactoryTest extends TestCase {
 		$this->assertTrue( $this->factory->isSupported( PoolType::Database ) );
 
 		$this->assertFalse(
-			condition: $this->factory->configure( default: $this->defaultConfig ),
+			condition: $this->factory->configure( new Directory( location: self::TEST_CACHE_DIR ) ),
 			message: 'Same config, either default or additional cannot be bootstrapped more than once.'
 		);
 
@@ -161,7 +160,9 @@ class FactoryTest extends TestCase {
 	}
 
 	public function testExceptionThrownIfAdditionalDriverNotRegistered(): void {
-		$this->factory->configure( $this->defaultConfig );
+		$this->factory->configure( new InMemoryArray() );
+
+		$this->assertInstanceOf( Driver::class, $this->factory->driver() );
 
 		// Cannot retrieve additional Cache Pool other than default if not configured yet.
 		$this->expectException( LogicException::class );

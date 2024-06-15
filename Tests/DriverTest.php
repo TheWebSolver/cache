@@ -12,8 +12,11 @@ use Symfony\Component\Cache\CacheItem;
 use PHPUnit\Framework\MockObject\MockObject;
 use TheWebSolver\Codegarage\Lib\Cache\Driver;
 use TheWebSolver\Codegarage\Lib\Cache\Data\Time;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use Symfony\Component\Cache\Adapter\AbstractAdapter;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
+use Symfony\Component\Cache\Adapter\AdapterInterface;
+use TheWebSolver\Codegarage\Lib\Cache\Data\InMemoryArray;
 use Symfony\Component\Cache\Adapter\AbstractTagAwareAdapter;
 
 class DriverTest extends TestCase {
@@ -42,6 +45,20 @@ class DriverTest extends TestCase {
 			);
 
 		return $adapter;
+	}
+
+	private function getMockedAdapter( string $adapterClass ): MockObject&AdapterInterface {
+		/** @var MockObject&AdapterInterface */
+		$mocked = $this->createMock( $adapterClass );
+
+		return $mocked;
+	}
+
+	private function getDriverWithInMemoryCacheAdapter(): Driver {
+		return new Driver(
+			adapter: new TagAwareAdapter( new ArrayAdapter( ...( new InMemoryArray() )->toArray() ) ),
+			taggable: true
+		);
 	}
 
 	/** @dataProvider provideVariousItemTagTypes */
@@ -237,8 +254,7 @@ class DriverTest extends TestCase {
 		string $adapterClass,
 		bool $expectPruneMethod
 	): void {
-		$adapter = $this->createMock( $adapterClass );
-		$driver  = new Driver( $adapter );
+		$driver = new Driver( $adapter = $this->getMockedAdapter( $adapterClass ) );
 
 		if ( $expectPruneMethod ) {
 			$adapter->expects( $this->exactly( 2 ) )
@@ -262,8 +278,7 @@ class DriverTest extends TestCase {
 
 	/** @dataProvider provideFlushableAdapters */
 	public function testFlushCachedItems( string $adapterClass, bool $expectClearMethod ): void {
-		$adapter = $this->createMock( $adapterClass );
-		$driver  = new Driver( $adapter );
+		$driver = new Driver( $adapter = $this->getMockedAdapter( $adapterClass ) );
 
 		if ( $expectClearMethod ) {
 			$adapter->expects( $this->exactly( 2 ) )
@@ -282,6 +297,87 @@ class DriverTest extends TestCase {
 			array( AbstractAdapter::class, true ),
 			array( TagAwareAdapter::class, false ),
 			array( AbstractTagAwareAdapter::class, true ),
+		);
+	}
+
+	public function testPullCacheItem(): void {
+		$driver = $this->getDriverWithInMemoryCacheAdapter();
+
+		$driver->add( key: 'pullIfExists', value: 'test' );
+
+		$this->assertInstanceOf( CacheItem::class, $item = $driver->pull( 'pullIfExists' ) );
+		$this->assertSame(
+			expected: 'test',
+			actual: $item->get(),
+			message: "Pulled item's value must be same."
+		);
+		$this->assertNull(
+			actual: $driver->pull( 'pullIfExists' ),
+			message: 'Once pulled, it must be deleted from the Cache Pool.'
+		);
+	}
+
+	public function testUpdateCacheItem(): void {
+		$driver = $this->getDriverWithInMemoryCacheAdapter();
+
+		$driver->tagged( array( 'tag1', 'tag2' ) )->add( 'cacheKey', value: 'currentValue' );
+		$driver->update( 'cacheKey', value: 'updatedValue' );
+		$this->assertSame( 'updatedValue', $driver->item( 'cacheKey' )->get() );
+	}
+
+	/** @dataProvider provideIncrementDecrementValues */
+	public function testIncrementDecrementCacheItem(
+		int $by,
+		mixed $value,
+		?bool $increase,
+		mixed $expectedValue
+	): void {
+		$driver = $this->getDriverWithInMemoryCacheAdapter();
+
+		if ( is_bool( $increase ) ) {
+			$driver->add( 'test', $value );
+		}
+
+		match ( $increase ) {
+			true  => $this->assertSame( $expectedValue, $driver->increase( 'test', $by )?->get() ),
+			false => $this->assertSame( $expectedValue, $driver->decrease( 'test', $by )?->get() ),
+			null  => $this->assertNull( $driver->increase( 'test', $by ) )
+				|| $this->assertNull( $driver->decrease( 'test', $by ) )
+		};
+	}
+
+	public function provideIncrementDecrementValues(): array {
+		return array(
+			array(
+				'by'            => 1,
+				'value'         => 5,
+				'increase'      => true,
+				'expectedValue' => 6,
+			),
+			array(
+				'by'            => 3,
+				'value'         => 7,
+				'increase'      => false,
+				'expectedValue' => 4,
+			),
+			array(
+				'by'            => 3,
+				'value'         => 7,
+				'increase'      => null,
+				'expectedValue' => null,
+			),
+			array(
+				'by'            => 1,
+				'value'         => 'non-numeric-returns-null',
+				'increase'      => true,
+				'expectedValue' => null,
+			),
+			array(
+				'by'            => 1,
+				'value'         => 'non-numeric-returns-null',
+				'increase'      => false,
+				'expectedValue' => null,
+			),
 		);
 	}
 }
