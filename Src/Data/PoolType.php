@@ -10,8 +10,8 @@ declare( strict_types = 1 );
 namespace TheWebSolver\Codegarage\Lib\Cache\Data;
 
 use InvalidArgumentException;
-use TheWebSolver\Codegarage\Lib\Cache\Cache;
 use Symfony\Component\Cache\Adapter\PdoAdapter;
+use Symfony\Component\Cache\Adapter\ArrayAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Configurable;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use Symfony\Component\Cache\Adapter\AdapterInterface;
@@ -25,15 +25,17 @@ use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 enum PoolType: string {
 	case FileSystem = 'localFileSystem';
 	case Database   = 'sqlDatabase';
+	case Array      = 'inMemoryAssociativeArray';
 
 	/** @throws InvalidArgumentException When unsupported configuration given. */
 	public static function fromConfiguration( Configurable $config ): self {
 		$class = $config::class;
 
 		return match ( $class ) {
-			Directory::class => self::FileSystem,
-			PdoDsn::class    => self::Database,
-			default          => throw new InvalidArgumentException(
+			Directory::class     => self::FileSystem,
+			PdoDsn::class        => self::Database,
+			InMemoryArray::class => self::Array,
+			default              => throw new InvalidArgumentException(
 				"Unsupported or Invalid Configuration class: {$class}"
 			),
 		};
@@ -44,6 +46,22 @@ enum PoolType: string {
 		return match ( $this ) {
 			self::FileSystem => Directory::class,
 			self::Database   => PdoDsn::class,
+			self::Array      => InMemoryArray::class,
+		};
+	}
+
+	public function adapter(): string {
+		return match ( $this ) {
+			self::FileSystem => FilesystemAdapter::class,
+			self::Database   => PdoAdapter::class,
+			self::Array      => ArrayAdapter::class,
+		};
+	}
+
+	public function tagAwareAdapter(): string {
+		return match ( $this ) {
+			self::FileSystem => FilesystemTagAwareAdapter::class,
+			default          => TagAwareAdapter::class,
 		};
 	}
 
@@ -56,20 +74,6 @@ enum PoolType: string {
 		return $this->isValid( $config ) ? $config : throw new InvalidArgumentException(
 			$this->fqcn() . ' only accepts configuration object of class "' . $config::class . '".'
 		);
-	}
-
-	public function adapter(): string {
-		return match ( $this ) {
-			self::FileSystem => FilesystemAdapter::class,
-			self::Database   => PdoAdapter::class,
-		};
-	}
-
-	public function tagAwareAdapter(): string {
-		return match ( $this ) {
-			self::FileSystem => FilesystemTagAwareAdapter::class,
-			default          => TagAwareAdapter::class,
-		};
 	}
 
 	public function fqcn(): string {
