@@ -14,19 +14,15 @@ use TheWebSolver\Codegarage\Lib\Cache\Configurable;
 use TheWebSolver\Codegarage\Lib\Cache\Configurator;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
-use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Marshaller\SodiumMarshaller;
 use Symfony\Component\Cache\Marshaller\DefaultMarshaller;
+use TheWebSolver\Codegarage\Lib\Cache\Data\InMemoryArray;
 use Symfony\Component\Cache\Marshaller\TagAwareMarshaller;
 use Symfony\Component\Cache\Marshaller\MarshallerInterface;
 use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 class PoolTypeTest extends TestCase {
-	protected function tearDown(): void {
-		FactoryTest::flushTestCacheDir( dir: FactoryTest::TEST_CACHE_DIR );
-	}
-
 	/** @return string[] */
 	private function getDecryptionKeysForMarshaller(): array {
 		return array( base64_decode( FactoryTest::TEST_CRYPTO_KEY ) );
@@ -48,7 +44,7 @@ class PoolTypeTest extends TestCase {
 	/** @return array<array{0:Configurable,1:PoolType,2:bool}> */
 	public function provideConfigurationDto(): array {
 		return array(
-			array( new Directory( location: FactoryTest::TEST_CACHE_DIR ), PoolType::FileSystem, false ),
+			array( new InMemoryArray(), PoolType::Array, false ),
 			array( new PdoDsn( '' ), PoolType::Database, false ),
 			array( new class() implements Configurable { use Configurator; }, PoolType::Database, true ),
 		);
@@ -128,10 +124,10 @@ class PoolTypeTest extends TestCase {
 	/** @return array<array{0:bool,1:PoolType,2:Configurable}> */
 	public function providePoolTypeAndItsConfigurationDto(): array {
 		return array(
-			array( true, PoolType::FileSystem, new Directory( location: FactoryTest::TEST_CACHE_DIR ) ),
+			array( true, PoolType::Array, new InMemoryArray() ),
 			array( true, PoolType::Database, new PdoDsn( '' ) ),
 			array( false, PoolType::FileSystem, new PdoDsn( '' ) ),
-			array( false, PoolType::Database, new Directory( location: FactoryTest::TEST_CACHE_DIR ) ),
+			array( false, PoolType::Database, new InMemoryArray() ),
 			array( false, PoolType::Database, new class() implements Configurable { use Configurator; } ),
 		);
 	}

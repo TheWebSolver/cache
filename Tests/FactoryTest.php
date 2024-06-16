@@ -13,10 +13,7 @@ use Symfony\Component\Cache\Adapter\PdoAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PdoDsn;
 use Symfony\Component\Cache\Adapter\TagAwareAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\PoolType;
-use TheWebSolver\Codegarage\Lib\Cache\Data\Directory;
-use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use TheWebSolver\Codegarage\Lib\Cache\Data\InMemoryArray;
-use Symfony\Component\Cache\Adapter\FilesystemTagAwareAdapter;
 
 /** @coversDefaultClass \TheWebSolver\Codegarage\Lib\Cache\Factory */
 class FactoryTest extends TestCase {
@@ -28,31 +25,6 @@ class FactoryTest extends TestCase {
 
 	protected function setUp(): void {
 		$this->factory = new Factory();
-	}
-
-	protected function tearDown(): void {
-		$this->flushTestCacheDir( dir: self::TEST_CACHE_DIR );
-	}
-
-	public static function flushTestCacheDir( string $dir ): bool {
-		$removedEverything = false;
-
-		if ( ! is_dir( $dir ) ) {
-			return $removedEverything;
-		}
-
-		foreach ( scandir( $dir ) as $content ) {
-			if ( '.' === $content || '..' === $content ) {
-				continue;
-			}
-
-			$maybeDir          = $dir . DIRECTORY_SEPARATOR . $content;
-			$removedEverything = is_dir( $maybeDir ) && ! is_link( $maybeDir )
-				? self::flushTestCacheDir( $maybeDir )
-				: unlink( $maybeDir );
-		}
-
-		return rmdir( $dir ) && $removedEverything;
 	}
 
 	public function testSingleTonOrFromContainer(): void {
@@ -68,10 +40,10 @@ class FactoryTest extends TestCase {
 	}
 
 	public function testFactoryConfigurationBootstrapIntegration(): Factory {
-		$this->assertFalse( $this->factory->isDefault( PoolType::FileSystem ) );
+		$this->assertFalse( $this->factory->isDefault( PoolType::Array ) );
 
 		$configured = $this->factory->configure(
-			new Directory( location: self::TEST_CACHE_DIR ),
+			new InMemoryArray(),
 			new PdoDsn( dsn: self::TEST_CONN_DSN )
 		);
 
@@ -81,12 +53,12 @@ class FactoryTest extends TestCase {
 			. ' only for the first time.'
 		);
 
-		$this->assertTrue( $this->factory->isDefault( PoolType::FileSystem ) );
-		$this->assertTrue( $this->factory->isSupported( PoolType::FileSystem ) );
+		$this->assertTrue( $this->factory->isDefault( PoolType::Array ) );
+		$this->assertTrue( $this->factory->isSupported( PoolType::Array ) );
 		$this->assertTrue( $this->factory->isSupported( PoolType::Database ) );
 
 		$this->assertFalse(
-			condition: $this->factory->configure( new Directory( location: self::TEST_CACHE_DIR ) ),
+			condition: $this->factory->configure( new InMemoryArray() ),
 			message: 'Same config, either default or additional cannot be bootstrapped more than once.'
 		);
 
@@ -114,22 +86,10 @@ class FactoryTest extends TestCase {
 			actual: $factory->decryptCryptoKeys()[0]
 		);
 
-		$this->assertInstanceOf(
-			expected: FilesystemTagAwareAdapter::class,
-			actual: $factory->driver()->adapter,
-			message: 'Taggable Cache Pool Driver must be available on demand for default Pool Type.'
-		);
-
-		$this->assertInstanceOf(
-			expected: FilesystemAdapter::class,
-			actual: $factory->driver( basic: true )->adapter,
-			message: 'Non-taggable Cache Pool Driver must be available on demand for default Pool Type.'
-		);
-
-		$this->assertFalse( $factory->isSupported( PoolType::FileSystem, encrypted: true ) );
+		$this->assertFalse( $factory->isSupported( PoolType::Array, encrypted: true ) );
 		$this->assertTrue( $factory->encrypted( basic: true )->encrypted );
 		$this->assertTrue(
-			condition: $factory->isSupported( PoolType::FileSystem, encrypted: true, basic: true ),
+			condition: $factory->isSupported( PoolType::Array, encrypted: true, basic: true ),
 			message: 'Encryption supported Non-taggable Cache Pool Driver must be available on demand.'
 		);
 
@@ -156,7 +116,7 @@ class FactoryTest extends TestCase {
 	public function testExceptionThrownIfDriverNotRegisteredWithGivenCachePoolType(): void {
 		// Cannot retrieve Cache Pool that is not configured yet.
 		$this->expectException( LogicException::class );
-		$this->factory->driver( PoolType::FileSystem );
+		$this->factory->driver( PoolType::Array );
 	}
 
 	public function testExceptionThrownIfAdditionalDriverNotRegistered(): void {
