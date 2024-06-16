@@ -118,6 +118,24 @@ class TimeTest extends TestCase {
 		Time::Minute->split( by: -5 );
 	}
 
+	/** @dataProvider provideTimeWithIntervals */
+	public function testGetInterval( string $expected, Time $time ): void {
+		$this->assertSame( $expected, actual: $time->getInterval() );
+	}
+
+	/** @return array<array{0:string,1:Time}> */
+	public function provideTimeWithIntervals(): array {
+		return array(
+			array( '1 second', Time::Second ),
+			array( '1 minute', Time::Minute ),
+			array( '1 hour', Time::Hour ),
+			array( '1 day', Time::Day ),
+			array( '1 week', Time::Week ),
+			array( '1 month', Time::Month ),
+			array( '1 year', Time::Year ),
+		);
+	}
+
 	private function assertInvalidTimeException(): void {
 		$this->expectException( InvalidArgumentException::class );
 		$this->expectExceptionMessage( 'Cannot set cache time to less than a second.' );

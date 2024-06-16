@@ -46,6 +46,18 @@ enum Time: int {
 			: $this->throwLesserThanOneSecond();
 	}
 
+	public function getInterval(): string {
+		return match ( $this ) {
+			self::Second => '1 second',
+			self::Minute => '1 minute',
+			self::Hour   => '1 hour',
+			self::Day    => '1 day',
+			self::Week   => '1 week',
+			self::Month  => '1 month',
+			self::Year   => '1 year',
+		};
+	}
+
 	private function format( int|float $value ): int {
 		return intval( round( $value ) );
 	}
