@@ -143,9 +143,12 @@ final class Factory {
 
 		// Create Basic Driver on demand.
 		return $this->drivers[ $key ] ??= new Driver(
-			adapter: $type->basic( $this->config[ $type->value ], $this->decryptCryptoKeys() ),
 			taggable: false,
-			encrypted: $encrypted
+			encrypted: $encrypted,
+			adapter: $type->basic(
+				config: $this->config[ $type->value ],
+				encryptionKeys: $encrypted ? $this->decryptCryptoKeys() : null
+			)
 		);
 	}
 
