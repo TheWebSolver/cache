@@ -101,10 +101,7 @@ class Driver {
 		mixed $value,
 		Time|DateTimeInterface|DateInterval|int|null $time = null
 	): ?CacheItem {
-		$item       = $this->add( $key, $value, $time, /* Recompute Cached Item */ true );
-		$this->tags = $item?->getMetadata()['tags'] ?? array();
-
-		return $item;
+		return $this->add( $key, $value, $time, /* Recompute Cached Item */ true );
 	}
 
 	public function increase( string $key, int $by = 1 ): ?CacheItem {

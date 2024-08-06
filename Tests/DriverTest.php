@@ -322,7 +322,23 @@ class DriverTest extends TestCase {
 
 		$driver->tagged( array( 'tag1', 'tag2' ) )->add( 'cacheKey', value: 'currentValue' );
 		$driver->update( 'cacheKey', value: 'updatedValue' );
+
 		$this->assertSame( 'updatedValue', $driver->item( 'cacheKey' )->get() );
+		$this->assertSame(
+			actual: $driver->item( 'cacheKey' )->getMetadata()[ CacheItem::METADATA_TAGS ],
+			expected: array(
+				'tag1' => 'tag1',
+				'tag2' => 'tag2',
+			),
+		);
+
+		$driver->tagged( 'newTag' )->update( 'cacheKey', value: 'withNewTag' );
+
+		$this->assertSame( 'withNewTag', $driver->item( 'cacheKey' )->get() );
+		$this->assertSame(
+			expected: array( 'newTag' => 'newTag' ),
+			actual: $driver->item( 'cacheKey' )->getMetadata()[ CacheItem::METADATA_TAGS ]
+		);
 	}
 
 	/** @dataProvider provideIncrementDecrementValues */
